@@ -1,0 +1,27 @@
+# Gradle / Build
+*.iml
+.gradle
+/build
+app/build
+.externalNativeBuild
+.cxx
+
+# Local Machine / IDE
+local.properties
+/.idea
+.DS_Store
+/captures
+
+# Keystores & Signing
+*.jks
+*.keystore
+*.apk
+
+# AI / Development Artifacts & Dumps
+/.artifacts
+/.agent
+*.artifact.md
+dependencies_output.txt
+ksp_deps.txt
+screenshot.png
+implementation_plan.artifact.md

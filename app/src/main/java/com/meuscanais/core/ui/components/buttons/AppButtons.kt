@@ -1,0 +1,127 @@
+package com.meuscanais.core.ui.components.buttons
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.meuscanais.core.ui.theme.*
+import com.meuscanais.core.ui.components.common.adaptiveFocus
+
+@Composable
+fun AppButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    enabled: Boolean = true,
+    containerColor: Color? = null,
+    contentColor: Color? = null
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val tokens = AppDesignSystem
+    val responsive = tokens.responsive
+    
+    val baseContainerColor = containerColor ?: tokens.colors.primary
+    val baseContentColor = contentColor ?: tokens.colors.background
+    
+    val animatedContainerColor by animateColorAsState(
+        if (isFocused) baseContainerColor else baseContainerColor.copy(alpha = 0.85f),
+        label = "btnContainer"
+    )
+
+    Button(
+        onClick = onClick,
+        modifier = modifier
+            .height(responsive.dp(tokens.dimensions.minTouchTarget))
+            .adaptiveFocus(
+                shape = tokens.shapes.button,
+                onFocus = { isFocused = it }
+            ),
+        enabled = enabled,
+        shape = tokens.shapes.button,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = animatedContainerColor,
+            contentColor = baseContentColor,
+            disabledContainerColor = tokens.colors.surfaceVariant.copy(alpha = 0.12f),
+            disabledContentColor = tokens.colors.textDisabled
+        ),
+        contentPadding = PaddingValues(horizontal = responsive.dp(tokens.spacing.large))
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            if (icon != null) {
+                Icon(icon, null, modifier = Modifier.size(responsive.dp(20.dp)))
+                Spacer(Modifier.width(responsive.dp(tokens.spacing.small)))
+            }
+            Text(
+                text = text.uppercase(), 
+                style = tokens.typography.label.copy(fontSize = responsive.sp(tokens.typography.label.fontSize)),
+                fontWeight = FontWeight.Black
+            )
+        }
+    }
+}
+
+@Composable
+fun AppSecondaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    enabled: Boolean = true
+) {
+    val tokens = AppDesignSystem
+    AppButton(
+        text = text,
+        onClick = onClick,
+        modifier = modifier,
+        icon = icon,
+        enabled = enabled,
+        containerColor = tokens.colors.surfaceVariant.copy(alpha = 0.2f),
+        contentColor = tokens.colors.textPrimary
+    )
+}
+
+@Composable
+fun AppIconButton(
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null,
+    tint: Color? = null
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val tokens = AppDesignSystem
+    val responsive = tokens.responsive
+    
+    val baseTint = tint ?: tokens.colors.textPrimary
+    val size = responsive.dp(tokens.dimensions.minTouchTarget + tokens.spacing.small)
+    
+    IconButton(
+        onClick = onClick,
+        modifier = modifier
+            .size(size)
+            .adaptiveFocus(
+                shape = CircleShape,
+                onFocus = { isFocused = it }
+            )
+            .background(if (isFocused) tokens.colors.textPrimary.copy(alpha = 0.1f) else Color.Transparent, CircleShape)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = if (isFocused) tokens.colors.primary else baseTint,
+            modifier = Modifier.size(responsive.dp(24.dp))
+        )
+    }
+}

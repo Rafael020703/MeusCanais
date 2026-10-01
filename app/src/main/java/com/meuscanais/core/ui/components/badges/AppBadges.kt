@@ -1,0 +1,98 @@
+package com.meuscanais.core.ui.components.badges
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.meuscanais.core.ui.components.common.adaptiveFocus
+import com.meuscanais.core.ui.theme.*
+
+@Composable
+fun AgeBadge(age: String, modifier: Modifier = Modifier) {
+    val tokens = AppDesignSystem
+    val color = when {
+        age.contains("18") || age.contains("R") -> tokens.colors.error
+        age.contains("16") -> Color(0xFFFF9100)
+        age.contains("14") -> tokens.colors.warning
+        age.contains("12") -> Color(0xFFAEEA00)
+        age.contains("10") -> tokens.colors.primary
+        age.contains("L") || age.contains("G") -> tokens.colors.success
+        else -> tokens.colors.textSecondary
+    }
+    Surface(
+        color = color.copy(alpha = 0.15f),
+        shape = RoundedCornerShape(6.dp),
+        border = BorderStroke(1.5.dp, color),
+        modifier = modifier
+    ) {
+        Text(
+            text = age.uppercase(),
+            modifier = Modifier.padding(horizontal = tokens.spacing.small, vertical = tokens.spacing.micro),
+            style = tokens.typography.label,
+            fontWeight = FontWeight.Black,
+            color = Color.White,
+            letterSpacing = 0.5.sp
+        )
+    }
+}
+
+@Composable
+fun RatingBadge(rating: String, modifier: Modifier = Modifier) {
+    if (rating == "0" || rating.isEmpty()) return
+    val tokens = AppDesignSystem
+    Surface(
+        color = Color(0xFFFFD700), 
+        shape = RoundedCornerShape(6.dp),
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = tokens.spacing.small, vertical = tokens.spacing.micro),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Star, 
+                null, 
+                modifier = Modifier.size(16.dp), 
+                tint = Color.Black
+            )
+            Spacer(modifier = Modifier.width(tokens.spacing.tiny))
+            Text(
+                text = rating, 
+                color = Color.Black, 
+                fontWeight = FontWeight.Black, 
+                style = tokens.typography.label
+            )
+        }
+    }
+}
+
+@Composable
+fun GenreBadge(genre: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val tokens = AppDesignSystem
+    var isFocused by remember { mutableStateOf(false) }
+    Surface(
+        onClick = onClick,
+        color = if (isFocused) tokens.colors.primary.copy(alpha = 0.2f) else tokens.colors.surface.copy(alpha = 0.1f),
+        shape = tokens.shapes.medium,
+        modifier = modifier.adaptiveFocus(shape = tokens.shapes.medium, onFocus = { isFocused = it })
+    ) {
+        Text(
+            text = genre.uppercase(),
+            modifier = Modifier.padding(horizontal = tokens.spacing.large, vertical = tokens.spacing.small),
+            style = tokens.typography.label,
+            color = if (isFocused) tokens.colors.primary else tokens.colors.textPrimary,
+            fontWeight = FontWeight.Black
+        )
+    }
+}

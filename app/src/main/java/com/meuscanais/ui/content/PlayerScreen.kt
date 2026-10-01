@@ -1,0 +1,544 @@
+@file:OptIn(ExperimentalMaterial3Api::class, UnstableApi::class)
+package com.meuscanais.ui.content
+
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.PlayerView
+import com.meuscanais.R
+import com.meuscanais.core.ui.components.buttons.*
+import com.meuscanais.core.ui.components.common.DigitalClock
+import com.meuscanais.core.ui.components.states.BrandedLoadingScreen
+import com.meuscanais.core.ui.theme.*
+import com.meuscanais.data.model.EpgProgramme
+import com.meuscanais.data.model.XtreamStream
+import com.meuscanais.domain.model.ContentType
+import com.meuscanais.ui.content.player.*
+import com.meuscanais.ui.viewmodel.PlayerUiState
+import com.meuscanais.ui.viewmodel.PlayerViewModel
+import com.meuscanais.util.DeviceType
+import com.meuscanais.util.rememberWindowInfo
+import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
+
+@Composable
+fun PlayerScreen(
+    viewModel: PlayerViewModel,
+    streamName: String,
+    categoryId: String? = null,
+    onBack: () -> Unit,
+    onNavigateToPlayer: (Int, String, String, String?) -> Unit = { _, _, _, _ -> }
+) {
+    val windowInfo = rememberWindowInfo()
+    val isExpanded = windowInfo.isExpanded
+    val isTv = windowInfo.deviceType == DeviceType.TV
+    val isTablet = windowInfo.deviceType == DeviceType.TABLET
+
+    val context = LocalContext.current
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val player by viewModel.currentPlayer.collectAsStateWithLifecycle()
+    val currentProgram by viewModel.currentProgram.collectAsStateWithLifecycle()
+    val nextPrograms by viewModel.nextPrograms.collectAsStateWithLifecycle()
+    val quickSwitchStreams by viewModel.quickSwitchStreams.collectAsStateWithLifecycle()
+    val resizeMode by viewModel.resizeMode.collectAsStateWithLifecycle()
+    val countdown by viewModel.nextEpisodeCountdown.collectAsStateWithLifecycle()
+    val appSettings by viewModel.appSettings.collectAsStateWithLifecycle()
+    val recentChannels by viewModel.recentChannels.collectAsStateWithLifecycle()
+    val sleepTimer by viewModel.sleepTimer.collectAsStateWithLifecycle()
+    val subtitleSize by viewModel.subtitleSize.collectAsStateWithLifecycle()
+    val zappingSessionId by viewModel.zappingSessionId.collectAsStateWithLifecycle()
+    
+    var isControlsVisible by remember { mutableStateOf(true) }
+    var lastInteraction by remember { mutableStateOf(0L) }
+    
+    var showSettings by remember { mutableStateOf(false) }
+    var showQualityMenu by remember { mutableStateOf(false) }
+    var isLocked by remember { mutableStateOf(false) }
+    var zappingChannel by remember { mutableStateOf<XtreamStream?>(null) }
+    var digitBuffer by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+
+    // Split view state
+    var isSplitView by remember { mutableStateOf(false) }
+
+    val onZapping = { isNext: Boolean ->
+        val streams = quickSwitchStreams
+        val currentState = uiState as? PlayerUiState.Playing
+        if (streams.isNotEmpty() && currentState != null && currentState.isLive) {
+            val currentIndex = streams.indexOfFirst { it.streamId == currentState.streamId }
+            val nextIndex = if (isNext) (currentIndex + 1) % streams.size else if (currentIndex <= 0) streams.size - 1 else currentIndex - 1
+            val target = streams[nextIndex]
+            zappingChannel = target
+            viewModel.playStream(
+                streamId = target.streamId ?: 0, 
+                type = ContentType.LIVE, 
+                container = null, 
+                epgId = target.epgChannelId,
+                qualities = emptyMap(),
+                categoryId = categoryId,
+                displayName = target.name,
+                streamIcon = target.streamIcon
+            )
+        }
+    }
+
+    LaunchedEffect(digitBuffer) {
+        if (digitBuffer.isNotEmpty()) {
+            delay(2.seconds)
+            viewModel.playByNumber(digitBuffer)
+            digitBuffer = ""
+        }
+    }
+
+    LaunchedEffect(isControlsVisible, lastInteraction, isSplitView, showSettings, showQualityMenu) {
+        if (isControlsVisible && !isSplitView && !showSettings && !showQualityMenu) {
+            val currentInteraction = lastInteraction
+            delay(8000)
+            if (lastInteraction == currentInteraction && !showSettings && !showQualityMenu) {
+                isControlsVisible = false
+            }
+        }
+    }
+
+    MeusCanaisTheme(
+        useOledTheme = appSettings.useOledTheme
+    ) {
+        PlayerContent(
+            streamName = streamName,
+            uiState = uiState,
+            currentProgram = currentProgram,
+            nextPrograms = nextPrograms,
+            quickSwitchStreams = quickSwitchStreams,
+            zappingEpg = viewModel.zappingEpg.collectAsState().value,
+            isControlsVisible = isControlsVisible,
+            onToggleControls = { isControlsVisible = !isControlsVisible },
+            onBack = { if (isSplitView) isSplitView = false else onBack() },
+            onTogglePlayPause = { viewModel.togglePlayPause() },
+            onSeek = { viewModel.seekTo(it) },
+            onSeekForward = { viewModel.seekForward() },
+            onSeekBack = { viewModel.seekBack() },
+            onNextEpisode = { viewModel.playNextEpisode() },
+            onCancelCountdown = { viewModel.cancelCountdown() },
+            onToggleFavorite = { viewModel.toggleFavorite() },
+            onReload = { viewModel.reloadStream() },
+            onToggleResizeMode = { viewModel.toggleResizeMode() },
+            onSelectTrack = { g, t, ty -> viewModel.selectTrack(g, t, ty) },
+            onClearTrackOverride = { viewModel.clearTrackOverride(it) },
+            onSetSpeed = { viewModel.setPlaybackSpeed(it) },
+            onSwitchStream = { stream ->
+                val currentState = uiState as? PlayerUiState.Playing
+                viewModel.playStream(
+                    streamId = stream.streamId ?: 0, 
+                    type = ContentType.LIVE, 
+                    container = null, 
+                    epgId = stream.epgChannelId,
+                    qualities = currentState?.availableQualities ?: emptyMap(),
+                    categoryId = categoryId,
+                    displayName = stream.name,
+                    streamIcon = stream.streamIcon
+                )
+            },
+            onSetSubtitleSize = { viewModel.setSubtitleSize(it) },
+            onZapping = onZapping,
+            onSetSleepTimer = { viewModel.setSleepTimer(it) },
+            recentChannels = recentChannels,
+            sleepTimer = sleepTimer,
+            subtitleSize = subtitleSize,
+            player = player,
+            resizeMode = resizeMode,
+            isLocked = isLocked,
+            onToggleLock = { isLocked = !it },
+            showSettings = showSettings,
+            setShowSettings = { showSettings = it },
+            showQualityMenu = showQualityMenu,
+            setShowQualityMenu = { showQualityMenu = it },
+            focusRequester = focusRequester,
+            countdown = countdown,
+            isTablet = isTablet,
+            isExpanded = isExpanded,
+            isTv = isTv,
+            updateInteraction = { lastInteraction = System.currentTimeMillis() },
+            digitBuffer = digitBuffer,
+            onDigitEntry = { digitBuffer += it },
+            zappingSessionId = zappingSessionId,
+            isSplitView = isSplitView,
+            setSplitView = { isSplitView = it },
+            playerEngine = appSettings.playerEngine,
+            zappingChannel = zappingChannel
+        )
+    }
+}
+
+@Composable
+fun PlayerContent(
+    streamName: String,
+    uiState: PlayerUiState,
+    currentProgram: EpgProgramme?,
+    nextPrograms: List<EpgProgramme>,
+    quickSwitchStreams: List<XtreamStream>,
+    zappingEpg: Map<Int, EpgProgramme>,
+    isControlsVisible: Boolean,
+    onToggleControls: () -> Unit,
+    onBack: () -> Unit,
+    onTogglePlayPause: () -> Unit,
+    onSeek: (Long) -> Unit,
+    onSeekForward: () -> Unit,
+    onSeekBack: () -> Unit,
+    onNextEpisode: () -> Unit,
+    onCancelCountdown: () -> Unit,
+    onToggleFavorite: () -> Unit,
+    onReload: () -> Unit,
+    onToggleResizeMode: () -> Unit,
+    onSelectTrack: (Int, Int, Int) -> Unit,
+    onClearTrackOverride: (Int) -> Unit,
+    onSetSpeed: (Float) -> Unit,
+    onSwitchStream: (XtreamStream) -> Unit,
+    onZapping: (Boolean) -> Unit,
+    onSetSleepTimer: (Int?) -> Unit,
+    onSetSubtitleSize: (Float) -> Unit,
+    recentChannels: List<XtreamStream>,
+    sleepTimer: Int?,
+    subtitleSize: Float,
+    player: Player?,
+    resizeMode: Int,
+    isLocked: Boolean,
+    onToggleLock: (Boolean) -> Unit,
+    showSettings: Boolean,
+    setShowSettings: (Boolean) -> Unit,
+    showQualityMenu: Boolean,
+    setShowQualityMenu: (Boolean) -> Unit,
+    focusRequester: FocusRequester,
+    countdown: Int?,
+    isTablet: Boolean,
+    isExpanded: Boolean,
+    isTv: Boolean,
+    updateInteraction: () -> Unit,
+    digitBuffer: String,
+    onDigitEntry: (String) -> Unit,
+    zappingSessionId: Int,
+    isSplitView: Boolean,
+    setSplitView: (Boolean) -> Unit,
+    playerEngine: String,
+    zappingChannel: XtreamStream?
+) {
+    val context = LocalContext.current
+    val tokens = AppDesignSystem
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(tokens.colors.background)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { 
+                        updateInteraction()
+                        onToggleControls() 
+                    }
+                )
+            }
+            .focusRequester(focusRequester)
+            .onKeyEvent { keyEvent ->
+                updateInteraction()
+                if (keyEvent.type == KeyEventType.KeyUp) {
+                    val isLive = (uiState as? PlayerUiState.Playing)?.isLive ?: false
+                    when (keyEvent.key) {
+                        Key.DirectionCenter, Key.Enter, Key.Spacebar -> { 
+                            onToggleControls()
+                            true 
+                        }
+                        Key.DirectionLeft -> { 
+                            if (!isControlsVisible && !isLive && !isSplitView) { onSeekBack(); onToggleControls(); true } else false
+                        }
+                        Key.DirectionRight -> { 
+                            if (!isControlsVisible && !isLive && !isSplitView) { onSeekForward(); onToggleControls(); true } else false
+                        }
+                        Key.DirectionUp -> {
+                            if (!isControlsVisible && isLive && !isSplitView) {
+                                updateInteraction()
+                                onZapping(false)
+                                true
+                            } else false
+                        }
+                        Key.DirectionDown -> {
+                            if (!isControlsVisible && isLive && !isSplitView) {
+                                updateInteraction()
+                                onZapping(true)
+                                true
+                            } else false
+                        }
+                        Key.Back -> {
+                            val handled = when {
+                                showSettings -> { setShowSettings(false); true }
+                                showQualityMenu -> { setShowQualityMenu(false); true }
+                                isSplitView -> { setSplitView(false); true }
+                                zappingChannel != null -> { updateInteraction(); true }
+                                isControlsVisible -> { onToggleControls(); true }
+                                else -> false
+                            }
+                            
+                            if (handled) {
+                                updateInteraction()
+                                true
+                            } else {
+                                onBack()
+                                true
+                            }
+                        }
+                        else -> {
+                            // Digit Entry
+                            val char = keyEvent.nativeKeyEvent.displayLabel.toString()
+                            if (char.toIntOrNull() != null) {
+                                onDigitEntry(char)
+                                true
+                            } else {
+                                when (keyEvent.nativeKeyEvent.keyCode) {
+                                    183 -> { onToggleFavorite(); true } // Red
+                                    184 -> { onToggleResizeMode(); true } // Green
+                                    185 -> { setShowSettings(true); true } // Yellow
+                                    186 -> { setShowQualityMenu(true); true } // Blue
+                                    172 -> { setSplitView(true); true } // Guide
+                                    else -> false
+                                }
+                            }
+                        }
+                    }
+                } else false
+            }
+            .focusable()
+    ) {
+        // Video Layer
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {
+            if (player != null) {
+                AndroidView(
+                    factory = { 
+                        PlayerView(context).apply { 
+                            this.player = player
+                            useController = false
+                            this.resizeMode = resizeMode
+                            this.keepScreenOn = true 
+                            setBackgroundColor(android.graphics.Color.BLACK)
+                        } 
+                    },
+                    update = { 
+                        if (it.player != player) it.player = player
+                        it.resizeMode = resizeMode
+                    },
+                    onRelease = { it.player = null },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+
+        // Split View UI
+        if (isSplitView) {
+            val state = uiState as? PlayerUiState.Playing
+            LiveSplitView(
+                categoryName = stringResource(R.string.tv_catalog_label), 
+                channels = quickSwitchStreams,
+                selectedChannelId = state?.streamId ?: 0,
+                currentProgram = currentProgram,
+                onChannelSelect = onSwitchStream
+            )
+        }
+
+        // Full Screen Overlay
+        if (!isSplitView && uiState is PlayerUiState.Playing) {
+            val state = uiState as PlayerUiState.Playing
+            if (state.isLive) {
+                LiveBottomOverlay(
+                    streamName = state.name ?: streamName,
+                    streamIcon = state.streamIcon,
+                    currentProgram = currentProgram,
+                    isControlsVisible = isControlsVisible,
+                    onShowSettings = { setShowSettings(true) },
+                    onToggleResize = onToggleResizeMode,
+                    onShowAudio = { setShowSettings(true) },
+                    onShowSubtitles = { setShowSettings(true) }
+                )
+
+                AnimatedVisibility(
+                    visible = isControlsVisible,
+                    enter = fadeIn() + expandHorizontally(),
+                    exit = fadeOut() + shrinkHorizontally(),
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                ) {
+                    ZappingEdgeControl(
+                        onNext = { onZapping(true) },
+                        onPrev = { onZapping(false) }
+                    )
+                }
+            } else {
+                AnimatedVisibility(visible = isControlsVisible, enter = fadeIn(), exit = fadeOut()) {
+                    PlayerControlOverlay(
+                        streamName = state.name ?: streamName,
+                        streamIcon = state.streamIcon,
+                        uiState = state,
+                        currentProgram = currentProgram,
+                        nextPrograms = nextPrograms,
+                        recentChannels = recentChannels,
+                        focusRequester = focusRequester,
+                        isExpanded = isExpanded,
+                        isTv = isTv,
+                        onBack = onBack,
+                        onTogglePlayPause = onTogglePlayPause,
+                        onSeek = onSeek,
+                        onSeekForward = onSeekForward,
+                        onSeekBack = onSeekBack,
+                        onNextEpisode = onNextEpisode,
+                        onShowSettings = { setShowSettings(true) },
+                        onShowChannels = { setSplitView(true) },
+                        onShowQuality = { setShowQualityMenu(true) },
+                        onShowSpeed = { },
+                        onToggleFavorite = onToggleFavorite,
+                        onToggleResizeMode = onToggleResizeMode,
+                        onToggleLock = { onToggleLock(true) },
+                        onReload = onReload,
+                        onEnterPip = { },
+                        onSwitchStream = onSwitchStream
+                    )
+                }
+            }
+        }
+
+        // Zapping Banner
+        ZappingBanner(
+            isVisible = zappingChannel != null,
+            channel = zappingChannel,
+            program = zappingEpg.get(zappingChannel?.streamId),
+            isExpanded = isExpanded
+        )
+
+        // Loading and Buffering indicators
+        if (uiState is PlayerUiState.Loading) {
+            BrandedLoadingScreen(message = stringResource(R.string.starting_playback))
+        }
+        
+        // Countdown for Next Episode
+        if (countdown != null && !isControlsVisible) {
+            Box(modifier = Modifier.fillMaxSize().padding(tokens.spacing.extraLarge), contentAlignment = Alignment.BottomEnd) {
+                 NextEpisodeCountdown(
+                     seconds = countdown, 
+                     onWatchNow = onNextEpisode, 
+                     onCancel = onCancelCountdown
+                 )
+            }
+        }
+
+        // Settings Dialog
+        if (showSettings && uiState is PlayerUiState.Playing) { 
+            val state = uiState as PlayerUiState.Playing
+            PlayerSettingsDialog(
+                tracks = state.tracks, 
+                sleepTimer = sleepTimer,
+                subtitleSize = subtitleSize,
+                onDismiss = { setShowSettings(false) }, 
+                onSelectTrack = onSelectTrack, 
+                onClearOverride = onClearTrackOverride,
+                onSetSleepTimer = onSetSleepTimer,
+                onSetSubtitleSize = onSetSubtitleSize
+            ) 
+        }
+
+        // Digit Entry Overlay
+        AnimatedVisibility(
+            visible = digitBuffer.isNotEmpty(),
+            enter = fadeIn() + scaleIn(initialScale = 0.8f),
+            exit = fadeOut() + scaleOut(targetScale = 1.1f),
+            modifier = Modifier.align(Alignment.TopEnd).padding(48.dp)
+        ) {
+            Surface(
+                color = tokens.colors.primary,
+                shape = tokens.shapes.medium,
+                tonalElevation = 8.dp
+            ) {
+                Text(
+                    text = digitBuffer,
+                    style = tokens.typography.display,
+                    fontWeight = FontWeight.Black,
+                    color = Color.Black,
+                    modifier = Modifier.padding(horizontal = 32.dp, vertical = 16.dp)
+                )
+            }
+        }
+
+        // Global Clock in Player
+        if (isControlsVisible) {
+            DigitalClock(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(tokens.spacing.extraLarge),
+                textStyle = tokens.typography.title.copy(color = tokens.colors.textPrimary.copy(alpha = 0.8f)),
+                format = "HH:mm"
+            )
+        }
+    }
+}
+
+@Composable
+fun NextEpisodeCountdown(seconds: Int, onWatchNow: () -> Unit, onCancel: () -> Unit) {
+    val tokens = AppDesignSystem
+    Surface(
+        color = tokens.colors.backgroundSecondary.copy(alpha = 0.9f),
+        shape = tokens.shapes.large,
+        border = BorderStroke(1.dp, tokens.colors.border.copy(alpha = 0.2f)),
+        modifier = Modifier.width(320.dp)
+    ) {
+        Column(modifier = Modifier.padding(tokens.spacing.large)) {
+            Text(
+                stringResource(R.string.next_episode_in_title).uppercase(), 
+                style = tokens.typography.caption, 
+                color = tokens.colors.textSecondary,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                stringResource(R.string.seconds_label, seconds).uppercase(), 
+                style = tokens.typography.headline, 
+                fontWeight = FontWeight.Black, 
+                color = tokens.colors.primary
+            )
+            Spacer(Modifier.height(tokens.spacing.medium))
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+                AppButton(
+                    text = "ASSISTIR AGORA", 
+                    onClick = onWatchNow, 
+                    modifier = Modifier.weight(1f)
+                )
+                AppIconButton(
+                    icon = Icons.Rounded.Close, 
+                    onClick = onCancel,
+                    tint = tokens.colors.textSecondary
+                )
+            }
+        }
+    }
+}
