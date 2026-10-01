@@ -10,8 +10,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import com.meuscanais.BuildConfig
 import com.meuscanais.R
 import com.meuscanais.domain.model.ContentType
+import com.meuscanais.ui.AppGalleryScreen
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import com.meuscanais.ui.account.AccountScreen
@@ -47,7 +49,14 @@ fun NavGraphBuilder.appNavGraph(
         val loginViewModel: LoginViewModel = hiltViewModel()
         LoginScreen(
             viewModel = loginViewModel,
+            onOpenGallery = if (BuildConfig.DEBUG) { { appController.navigate(Route.Gallery) } } else null,
             onLoginSuccess = { /* Managed by LaunchedEffect in MainNavigation */ }
+        )
+    }
+
+    composable<Route.Gallery> {
+        AppGalleryScreen(
+            onBack = { appController.goBack("gallery") }
         )
     }
 

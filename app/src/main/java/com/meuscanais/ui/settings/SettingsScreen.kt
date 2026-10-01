@@ -1,12 +1,15 @@
 package com.meuscanais.ui.settings
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,60 +28,44 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import com.meuscanais.R
 import com.meuscanais.core.ui.components.buttons.AppButton
-import com.meuscanais.core.ui.components.navigation.AppHeader
-import com.meuscanais.core.ui.components.navigation.AppSidebar
-import com.meuscanais.core.ui.components.states.LoadingState
+import com.meuscanais.core.ui.components.buttons.AppIconButton
 import com.meuscanais.core.ui.components.settings.*
+import com.meuscanais.core.ui.components.states.LoadingState
 import com.meuscanais.core.ui.theme.*
 import com.meuscanais.ui.dashboard.PortalBackground
 import com.meuscanais.ui.viewmodel.MainViewModel
-import com.meuscanais.ui.viewmodel.settings.SettingsViewModel
 import com.meuscanais.ui.viewmodel.library.LibraryViewModel
+import com.meuscanais.ui.viewmodel.settings.SettingsViewModel
 import com.meuscanais.util.NetworkDiagnostics
 import com.meuscanais.util.rememberWindowInfo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 
 /**
- * CONFIGURAÇÕES - CINEMATIC IMMERSION
+ * CONFIGURAÇÕES - REESTRUTURAÇÃO VISUAL PÁGINA ÚNICA
+ *
+ * Grade responsiva horizontal com componentes em ordem alfabética estrita,
+ * sem sidebar, aproveitando a largura útil total e alinhada ao visual do Dashboard.
  */
 
-enum class SettingsSection(val titleRes: Int, val icon: ImageVector) {
-    ACCOUNT(R.string.account_label, Icons.Rounded.AccountCircle),
-    APPEARANCE(R.string.app_settings_section, Icons.Rounded.Palette),
-    PLAYBACK(R.string.player_settings_section, Icons.Rounded.PlayCircle),
-    SECURITY(R.string.parental_control_label, Icons.Rounded.Security),
-    MAINTENANCE(R.string.reset_database_label, Icons.Rounded.SettingsBackupRestore)
-}
-
-enum class SettingsCategory(val labelRes: Int, val icon: ImageVector, val section: SettingsSection) {
-    // CONTA
-    ACCOUNT(R.string.account_label, Icons.Rounded.ManageAccounts, SettingsSection.ACCOUNT),
-    SIGN_OUT(R.string.logout_label, Icons.AutoMirrored.Rounded.Logout, SettingsSection.ACCOUNT),
-    
-    // APARÊNCIA
-    LANGUAGE(R.string.language_label, Icons.Rounded.Language, SettingsSection.APPEARANCE),
-    THEME(R.string.oled_theme_label, Icons.Rounded.DarkMode, SettingsSection.APPEARANCE),
-    ZOOM(R.string.ui_zoom_label, Icons.Rounded.ZoomIn, SettingsSection.APPEARANCE),
-    
-    // REPRODUÇÃO
-    PLAYER_ENGINE(R.string.video_quality_section, Icons.Rounded.SettingsInputComponent, SettingsSection.PLAYBACK),
-    BUFFER(R.string.buffer_strategy_label, Icons.Rounded.Memory, SettingsSection.PLAYBACK),
-    AUTO_PLAY(R.string.auto_play_label, Icons.AutoMirrored.Rounded.PlaylistPlay, SettingsSection.PLAYBACK),
-    DIAGNOSTICS(R.string.show_diagnostics_label, Icons.Rounded.Analytics, SettingsSection.PLAYBACK),
-    
-    // SEGURANÇA
-    PARENTAL(R.string.parental_control_label, Icons.Rounded.Lock, SettingsSection.SECURITY),
-    HIDE_LOCKED(R.string.hide_blocked_label, Icons.Rounded.VisibilityOff, SettingsSection.SECURITY),
-    
-    // MANUTENÇÃO
-    UPDATE(R.string.force_sync_button, Icons.Rounded.Sync, SettingsSection.MAINTENANCE),
-    APP_UPDATES(R.string.app_updates_title, Icons.Rounded.SystemUpdate, SettingsSection.MAINTENANCE),
-    DNS_TESTER(R.string.dns_tester_title, Icons.Rounded.Dns, SettingsSection.MAINTENANCE),
-    CLEAR_CACHE(R.string.clear_cache_label, Icons.Rounded.Brush, SettingsSection.MAINTENANCE),
-    CLEAR_CATALOG(R.string.reset_database_label, Icons.Rounded.DeleteSweep, SettingsSection.MAINTENANCE),
-    SPEED_TEST(R.string.test_now_button, Icons.Rounded.Speed, SettingsSection.MAINTENANCE)
+enum class SettingsCategory(val labelRes: Int, val icon: ImageVector) {
+    ACCOUNT(R.string.account_label, Icons.Rounded.ManageAccounts),
+    SIGN_OUT(R.string.logout_label, Icons.AutoMirrored.Rounded.Logout),
+    LANGUAGE(R.string.language_label, Icons.Rounded.Language),
+    THEME(R.string.oled_theme_label, Icons.Rounded.DarkMode),
+    ZOOM(R.string.ui_zoom_label, Icons.Rounded.ZoomIn),
+    PLAYER_ENGINE(R.string.video_quality_section, Icons.Rounded.SettingsInputComponent),
+    BUFFER(R.string.buffer_strategy_label, Icons.Rounded.Memory),
+    AUTO_PLAY(R.string.auto_play_label, Icons.AutoMirrored.Rounded.PlaylistPlay),
+    DIAGNOSTICS(R.string.show_diagnostics_label, Icons.Rounded.Analytics),
+    PARENTAL(R.string.parental_control_label, Icons.Rounded.Lock),
+    HIDE_LOCKED(R.string.hide_blocked_label, Icons.Rounded.VisibilityOff),
+    UPDATE(R.string.force_sync_button, Icons.Rounded.Sync),
+    APP_UPDATES(R.string.app_updates_title, Icons.Rounded.SystemUpdate),
+    DNS_TESTER(R.string.dns_tester_title, Icons.Rounded.Dns),
+    CLEAR_CACHE(R.string.clear_cache_label, Icons.Rounded.Brush),
+    CLEAR_CATALOG(R.string.reset_database_label, Icons.Rounded.DeleteSweep),
+    SPEED_TEST(R.string.test_now_button, Icons.Rounded.Speed)
 }
 
 @UnstableApi
@@ -97,17 +84,18 @@ fun SettingsScreen(
     val credentials = mainViewModel.credentials
     val windowInfo = rememberWindowInfo()
     val tokens = AppDesignSystem
-    val responsive = tokens.responsive
     val scope = rememberCoroutineScope()
-    
-    var selectedSection by remember { mutableStateOf(SettingsSection.ACCOUNT) }
+
     var detailCategory by remember { mutableStateOf<SettingsCategory?>(null) }
     var showResetDialog by remember { mutableStateOf(false) }
-    
-    val sidebarFocusRequester = remember { FocusRequester() }
+
     val contentFocusRequester = remember { FocusRequester() }
 
-    val isCompact = windowInfo.screenWidth < 800.dp
+    // Ordenação alfabética estrita do texto visível na interface
+    val categoryNames = SettingsCategory.entries.associateWith { stringResource(it.labelRes) }
+    val sortedCategories = remember(categoryNames) {
+        SettingsCategory.entries.sortedBy { categoryNames[it]?.uppercase() ?: "" }
+    }
 
     BackHandler(enabled = detailCategory != null || showResetDialog) {
         if (detailCategory != null) detailCategory = null
@@ -116,117 +104,166 @@ fun SettingsScreen(
 
     LaunchedEffect(Unit) {
         mainViewModel.refreshStats()
-        delay(500)
-        try { sidebarFocusRequester.requestFocus() } catch (_: Exception) {}
+        delay(300)
+        try { contentFocusRequester.requestFocus() } catch (_: Exception) {}
     }
 
-    PortalBackground {
-        Column(modifier = Modifier.fillMaxSize()) {
-            AppHeader(
-                title = stringResource(R.string.settings_nav_title),
-                subtitle = stringResource(R.string.settings_nav_subtitle),
-                onBack = onBack
-            )
+    PortalBackground(showAtmosphere = true) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            // --- HEADER DA PÁGINA ---
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AppIconButton(
+                    icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                    onClick = onBack,
+                    tint = tokens.colors.primary,
+                    contentDescription = "Voltar"
+                )
 
-            Row(modifier = Modifier.fillMaxSize()) {
-                // SIDEBAR (Only on wide screens)
-                if (!isCompact) {
-                    AppSidebar(
-                        items = SettingsSection.entries,
-                        selectedItemPredicate = { it == selectedSection },
-                        itemLabel = { stringResource(it.titleRes) },
-                        onItemClick = { selectedSection = it },
-                        focusRequester = sidebarFocusRequester,
-                        nextFocusRequester = contentFocusRequester
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column {
+                    Text(
+                        text = stringResource(R.string.settings_nav_title).uppercase(),
+                        style = tokens.typography.headline.copy(fontSize = 22.sp),
+                        fontWeight = FontWeight.Black,
+                        color = tokens.colors.textPrimary,
+                        letterSpacing = 2.sp
+                    )
+                    Text(
+                        text = "GERENCIE SUA EXPERIÊNCIA PREMIUM",
+                        style = tokens.typography.body.copy(fontSize = 11.sp),
+                        fontWeight = FontWeight.Bold,
+                        color = tokens.colors.primary,
+                        letterSpacing = 1.sp
                     )
                 }
+            }
 
-                // CONTENT AREA
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = responsive.dp(tokens.spacing.extraLarge), vertical = responsive.dp(tokens.spacing.large))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // --- GRADE HORIZONTAL RESPONSIVA (SEM SIDEBAR, ORDEM ALFABÉTICA) ---
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = if (windowInfo.screenWidth < 600.dp) 130.dp else 165.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                itemsIndexed(sortedCategories, key = { _, item -> item.name }) { index, category ->
+                    SettingsGridCard(
+                        label = stringResource(category.labelRes),
+                        icon = category.icon,
+                        isDestructive = category == SettingsCategory.SIGN_OUT || category == SettingsCategory.CLEAR_CATALOG,
+                        modifier = if (index == 0) Modifier.focusRequester(contentFocusRequester) else Modifier,
+                        onClick = {
+                            when (category) {
+                                SettingsCategory.SIGN_OUT -> mainViewModel.logout()
+                                SettingsCategory.UPDATE -> mainViewModel.loadData(force = true)
+                                SettingsCategory.APP_UPDATES -> onNavigateToUpdates()
+                                SettingsCategory.DNS_TESTER -> onNavigateToDnsTester()
+                                SettingsCategory.CLEAR_CACHE -> mainViewModel.clearCache()
+                                SettingsCategory.CLEAR_CATALOG -> showResetDialog = true
+                                else -> detailCategory = category
+                            }
+                        }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // --- RODAPÉ SECUNDÁRIO DISCRETO ---
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = tokens.colors.surfaceElevated.copy(alpha = 0.5f),
+                shape = tokens.shapes.medium,
+                border = BorderStroke(1.dp, tokens.colors.border.copy(alpha = 0.15f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val displaySections = if (isCompact) SettingsSection.entries else listOf(selectedSection)
-                    
-                    displaySections.forEach { section ->
-                        if (isCompact) {
-                            Text(
-                                text = stringResource(section.titleRes).uppercase(),
-                                style = tokens.typography.label.copy(fontSize = responsive.sp(14.sp)),
-                                color = tokens.colors.primary,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 2.sp,
-                                modifier = Modifier.padding(bottom = responsive.dp(tokens.spacing.large), top = responsive.dp(tokens.spacing.extraLarge))
-                            )
-                        }
-
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = if (isCompact) Arrangement.Start else Arrangement.Start,
-                            verticalArrangement = Arrangement.spacedBy(responsive.dp(tokens.spacing.extraLarge))
-                        ) {
-                            SettingsCategory.entries.filter { it.section == section }.forEachIndexed { index, category ->
-                                SettingsGridCard(
-                                    label = stringResource(category.labelRes),
-                                    icon = category.icon,
-                                    isDestructive = category == SettingsCategory.SIGN_OUT || category == SettingsCategory.CLEAR_CATALOG,
-                                    modifier = Modifier
-                                        .padding(end = responsive.dp(tokens.spacing.medium))
-                                        .then(if (index == 0 && !isCompact) Modifier.focusRequester(contentFocusRequester) else Modifier),
-                                    onClick = {
-                                        when (category) {
-                                            SettingsCategory.SIGN_OUT -> mainViewModel.logout()
-                                            SettingsCategory.UPDATE -> mainViewModel.loadData(force = true)
-                                            SettingsCategory.APP_UPDATES -> onNavigateToUpdates()
-                                            SettingsCategory.DNS_TESTER -> onNavigateToDnsTester()
-                                            SettingsCategory.CLEAR_CACHE -> mainViewModel.clearCache()
-                                            SettingsCategory.CLEAR_CATALOG -> mainViewModel.clearCatalogData()
-                                            else -> detailCategory = category
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(responsive.dp(tokens.spacing.giant)))
-                    
-                    // FOOTER (Stats)
-                    if (!isCompact) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = tokens.colors.surface.copy(alpha = 0.1f),
-                            shape = tokens.shapes.medium
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(responsive.dp(tokens.spacing.large)),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "VERSÃO 1.0 PREMIUM",
-                                    style = tokens.typography.caption.copy(fontSize = responsive.sp(10.sp)),
-                                    color = tokens.colors.textSecondary.copy(alpha = 0.5f),
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "BIBLIOTECA: ${dbStats.first} CANAIS | ${dbStats.second} FILMES | ${dbStats.third} SÉRIES",
-                                    style = tokens.typography.caption.copy(fontSize = responsive.sp(10.sp)),
-                                    color = tokens.colors.textSecondary.copy(alpha = 0.5f),
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
+                    Text(
+                        text = "VERSÃO 1.0 PREMIUM",
+                        style = tokens.typography.caption.copy(fontSize = 11.sp),
+                        color = tokens.colors.textSecondary.copy(alpha = 0.6f),
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp
+                    )
+                    Text(
+                        text = "BIBLIOTECA: ${dbStats.first} CANAIS | ${dbStats.second} FILMES | ${dbStats.third} SÉRIES",
+                        style = tokens.typography.caption.copy(fontSize = 11.sp),
+                        color = tokens.colors.textSecondary.copy(alpha = 0.6f),
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
                 }
             }
         }
     }
 
-    // Detail Dialogs
+    // DIÁLOGO DE CONFIRMAÇÃO PARA "REDEFINIR BASE DE DADOS"
+    if (showResetDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetDialog = false },
+            containerColor = tokens.colors.backgroundSecondary,
+            shape = tokens.shapes.extraLarge,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.DeleteSweep,
+                        contentDescription = null,
+                        tint = tokens.colors.error,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "REDEFINIR BASE DE DADOS",
+                        style = tokens.typography.headline.copy(fontSize = 18.sp),
+                        fontWeight = FontWeight.Black,
+                        color = tokens.colors.error
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = "Deseja realmente redefinir a base de dados do aplicativo? Todos os canais, filmes e séries sincronizados localmente serão limpos e resincronizados.",
+                    style = tokens.typography.body.copy(fontSize = 13.sp),
+                    color = tokens.colors.textSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showResetDialog = false
+                        mainViewModel.clearCatalogData()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = tokens.colors.error)
+                ) {
+                    Text("REDEFINIR", fontWeight = FontWeight.Black, color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetDialog = false }) {
+                    Text("CANCELAR", color = tokens.colors.textPrimary, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    // DIÁLOGOS DE CATEGORIA / DETALHES
     if (detailCategory != null) {
         val cat = detailCategory!!
         AlertDialog(
@@ -235,11 +272,11 @@ fun SettingsScreen(
             shape = tokens.shapes.extraLarge,
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(cat.icon, null, tint = tokens.colors.primary, modifier = Modifier.size(responsive.dp(32.dp)))
-                    Spacer(Modifier.width(responsive.dp(tokens.spacing.large)))
+                    Icon(cat.icon, null, tint = tokens.colors.primary, modifier = Modifier.size(28.dp))
+                    Spacer(Modifier.width(12.dp))
                     Text(
                         text = stringResource(cat.labelRes).uppercase(),
-                        style = tokens.typography.headline.copy(fontSize = responsive.sp(tokens.typography.headline.fontSize)),
+                        style = tokens.typography.headline.copy(fontSize = 18.sp),
                         fontWeight = FontWeight.Black,
                         color = tokens.colors.textPrimary
                     )
@@ -247,8 +284,10 @@ fun SettingsScreen(
             },
             text = {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = responsive.dp(tokens.spacing.medium)),
-                    verticalArrangement = Arrangement.spacedBy(responsive.dp(tokens.spacing.small))
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     when (cat) {
                         SettingsCategory.ACCOUNT -> {
@@ -343,8 +382,12 @@ fun SettingsScreen(
                                     unfocusedTextColor = Color.White
                                 )
                             )
-                            Spacer(Modifier.height(responsive.dp(tokens.spacing.medium)))
-                            AppButton(text = "SALVAR NOVO PIN", onClick = { settingsViewModel.updatePin(pinInput.ifEmpty { null }); detailCategory = null }, modifier = Modifier.fillMaxWidth())
+                            Spacer(Modifier.height(12.dp))
+                            AppButton(
+                                text = "SALVAR NOVO PIN",
+                                onClick = { settingsViewModel.updatePin(pinInput.ifEmpty { null }); detailCategory = null },
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                         SettingsCategory.HIDE_LOCKED -> {
                             SettingsToggle(
@@ -370,7 +413,7 @@ fun SettingsScreen(
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                 }
-                                Spacer(Modifier.height(responsive.dp(tokens.spacing.medium)))
+                                Spacer(Modifier.height(12.dp))
                                 AppButton(
                                     text = "INICIAR TESTE",
                                     onClick = {

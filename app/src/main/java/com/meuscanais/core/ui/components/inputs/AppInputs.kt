@@ -1,13 +1,16 @@
 package com.meuscanais.core.ui.components.inputs
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -32,19 +35,43 @@ fun AppTextField(
     val tokens = AppDesignSystem
     val responsive = tokens.responsive
     
-    val height = responsive.dp(tokens.dimensions.minTouchTarget + tokens.spacing.small)
+    val height = responsive.dp(tokens.dimensions.minTouchTarget + tokens.spacing.small).coerceAtLeast(tokens.dimensions.minTouchTarget)
     val fontSize = responsive.sp(tokens.typography.body.fontSize)
     val labelSize = responsive.sp(tokens.typography.label.fontSize)
+
+    var isFocused by remember { mutableStateOf(false) }
+
+    val animatedBorderColor by animateColorAsState(
+        targetValue = if (isFocused) tokens.colors.primary else tokens.colors.textPrimary.copy(alpha = 0.12f),
+        label = "textFieldBorder"
+    )
+    val animatedContainerColor by animateColorAsState(
+        targetValue = if (isFocused) tokens.colors.primary.copy(alpha = 0.12f) else tokens.colors.textPrimary.copy(alpha = 0.05f),
+        label = "textFieldContainer"
+    )
 
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.fillMaxWidth().height(height),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(height)
+            .onFocusChanged { isFocused = it.isFocused }
+            .then(
+                if (isFocused) {
+                    Modifier.shadow(
+                        elevation = 12.dp,
+                        shape = tokens.shapes.large,
+                        ambientColor = tokens.colors.primary.copy(alpha = 0.4f),
+                        spotColor = tokens.colors.primary
+                    )
+                } else Modifier
+            ),
         placeholder = { 
             Text(
                 text = placeholder.uppercase(), 
                 style = tokens.typography.label.copy(fontSize = labelSize),
-                color = tokens.colors.textSecondary,
+                color = if (isFocused) tokens.colors.primary.copy(alpha = 0.8f) else tokens.colors.textSecondary,
                 fontWeight = FontWeight.Bold
             ) 
         },
@@ -59,10 +86,10 @@ fun AppTextField(
         ),
         keyboardActions = keyboardActions,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = tokens.colors.primary,
-            unfocusedBorderColor = tokens.colors.textPrimary.copy(alpha = 0.1f),
-            focusedContainerColor = tokens.colors.textPrimary.copy(alpha = 0.1f),
-            unfocusedContainerColor = tokens.colors.textPrimary.copy(alpha = 0.05f),
+            focusedBorderColor = animatedBorderColor,
+            unfocusedBorderColor = animatedBorderColor,
+            focusedContainerColor = animatedContainerColor,
+            unfocusedContainerColor = animatedContainerColor,
             cursorColor = tokens.colors.primary,
             focusedTextColor = Color.White,
             unfocusedTextColor = Color.White

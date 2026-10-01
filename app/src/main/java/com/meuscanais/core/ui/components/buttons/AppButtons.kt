@@ -8,6 +8,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -23,7 +25,8 @@ fun AppButton(
     icon: ImageVector? = null,
     enabled: Boolean = true,
     containerColor: Color? = null,
-    contentColor: Color? = null
+    contentColor: Color? = null,
+    useGradient: Boolean = false
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val tokens = AppDesignSystem
@@ -33,22 +36,45 @@ fun AppButton(
     val baseContentColor = contentColor ?: tokens.colors.background
     
     val animatedContainerColor by animateColorAsState(
-        if (isFocused) baseContainerColor else baseContainerColor.copy(alpha = 0.85f),
+        if (isFocused) baseContainerColor else baseContainerColor.copy(alpha = 0.88f),
         label = "btnContainer"
     )
 
     Button(
         onClick = onClick,
         modifier = modifier
-            .height(responsive.dp(tokens.dimensions.minTouchTarget))
+            .height(responsive.dp(tokens.dimensions.minTouchTarget).coerceAtLeast(tokens.dimensions.minTouchTarget))
             .adaptiveFocus(
                 shape = tokens.shapes.button,
+                glowColor = tokens.colors.primary,
+                focusedScale = 1.03f,
                 onFocus = { isFocused = it }
+            )
+            .then(
+                if (useGradient && enabled) {
+                    Modifier
+                        .shadow(
+                            elevation = if (isFocused) 16.dp else 8.dp,
+                            shape = tokens.shapes.button,
+                            ambientColor = tokens.colors.primary.copy(alpha = 0.35f),
+                            spotColor = tokens.colors.primary
+                        )
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    tokens.colors.primary,
+                                    PrimaryCyanVariant,
+                                    SecondaryPurple
+                                )
+                            ),
+                            shape = tokens.shapes.button
+                        )
+                } else Modifier
             ),
         enabled = enabled,
         shape = tokens.shapes.button,
         colors = ButtonDefaults.buttonColors(
-            containerColor = animatedContainerColor,
+            containerColor = if (useGradient && enabled) Color.Transparent else animatedContainerColor,
             contentColor = baseContentColor,
             disabledContainerColor = tokens.colors.surfaceVariant.copy(alpha = 0.12f),
             disabledContentColor = tokens.colors.textDisabled

@@ -1,6 +1,5 @@
 package com.meuscanais.core.ui.components.settings
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,7 +11,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -37,45 +35,66 @@ fun SettingsGridCard(
     var isFocused by remember { mutableStateOf(false) }
     val baseColor = if (isDestructive) tokens.colors.error else tokens.colors.primary
 
-    val cardSize = responsive.dp(110.dp)
-    val iconSize = responsive.dp(42.dp)
-    val fontSize = responsive.sp(tokens.typography.label.fontSize)
+    val cardHeight = responsive.dp(120.dp).coerceAtLeast(102.dp)
+    val iconSize = responsive.dp(32.dp).coerceAtLeast(26.dp)
+    val fontSize = responsive.sp(11.sp)
 
-    Column(
+    Surface(
         modifier = modifier
+            .fillMaxWidth()
+            .height(cardHeight)
             .adaptiveFocus(
-                shape = tokens.shapes.large,
+                shape = tokens.shapes.extraLarge,
+                glowColor = baseColor,
+                focusedScale = 1.06f,
                 onFocus = { isFocused = it }
             )
             .clickable { onClick() },
-        horizontalAlignment = Alignment.CenterHorizontally
+        color = if (isFocused) baseColor.copy(alpha = 0.18f) else Color(0xFF0D1322).copy(alpha = 0.82f),
+        shape = tokens.shapes.extraLarge,
+        border = BorderStroke(
+            1.5.dp,
+            if (isFocused) baseColor else tokens.colors.border.copy(alpha = 0.22f)
+        ),
+        shadowElevation = if (isFocused) 16.dp else 6.dp
     ) {
-        Surface(
-            modifier = Modifier.size(cardSize),
-            color = if (isFocused) baseColor.copy(alpha = 0.15f) else tokens.colors.surface.copy(alpha = 0.3f),
-            shape = tokens.shapes.large,
-            border = BorderStroke(responsive.dp(1.dp), if (isFocused) baseColor else Color.White.copy(alpha = 0.05f))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 10.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Box(contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .size(iconSize + 16.dp)
+                    .background(
+                        if (isFocused) baseColor.copy(alpha = 0.25f) else tokens.colors.primary.copy(alpha = 0.08f),
+                        CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     modifier = Modifier.size(iconSize),
-                    tint = if (isFocused) baseColor else tokens.colors.textSecondary
+                    tint = if (isFocused) baseColor else tokens.colors.textPrimary
                 )
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = label.uppercase(),
+                style = tokens.typography.label.copy(fontSize = fontSize),
+                fontWeight = FontWeight.Black,
+                color = if (isFocused) baseColor else tokens.colors.textPrimary,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                letterSpacing = 1.sp
+            )
         }
-        Spacer(modifier = Modifier.height(responsive.dp(tokens.spacing.medium)))
-        Text(
-            text = label.uppercase(),
-            style = tokens.typography.label.copy(fontSize = fontSize),
-            fontWeight = if (isFocused) FontWeight.Black else FontWeight.Bold,
-            color = if (isFocused) baseColor else tokens.colors.textSecondary,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            letterSpacing = responsive.sp(1.sp)
-        )
     }
 }
 

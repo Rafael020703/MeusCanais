@@ -13,6 +13,9 @@ sealed interface Route {
     data object Login : Route
 
     @Serializable
+    data object Gallery : Route
+
+    @Serializable
     data class LiveChannels(val categoryId: String? = null) : Route
 
     @Serializable
