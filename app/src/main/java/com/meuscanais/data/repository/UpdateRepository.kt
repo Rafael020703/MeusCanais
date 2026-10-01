@@ -82,7 +82,10 @@ class UpdateRepository @Inject constructor(
             } ?: return UpdateCheckResult.NoCompatibleApk
 
             // Extract SHA256 if provided in asset or in body description
-            val sha256 = apkAsset.digest?.takeIf { it.isNotBlank() }
+            val sha256 = apkAsset.digest
+                ?.removePrefix("sha256:")
+                ?.removePrefix("SHA256:")
+                ?.takeIf { it.isNotBlank() }
                 ?: extractSha256FromBody(release.body)
 
             val updateInfo = AppUpdateInfo(

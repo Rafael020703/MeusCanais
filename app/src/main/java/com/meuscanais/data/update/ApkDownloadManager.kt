@@ -147,6 +147,9 @@ class ApkDownloadManager @Inject constructor(
         if (expectedSha256.isNullOrBlank()) {
             return file.exists() && file.length() > 0
         }
+        val cleanExpected = expectedSha256.trim()
+            .removePrefix("sha256:")
+            .removePrefix("SHA256:")
         return try {
             val digest = MessageDigest.getInstance("SHA-256")
             file.inputStream().use { input ->
@@ -157,7 +160,7 @@ class ApkDownloadManager @Inject constructor(
                 }
             }
             val calculatedHash = digest.digest().joinToString("") { "%02x".format(it) }
-            calculatedHash.equals(expectedSha256.trim(), ignoreCase = true)
+            calculatedHash.equals(cleanExpected, ignoreCase = true)
         } catch (e: Exception) {
             Timber.e(e, "Erro ao validar SHA-256")
             false
