@@ -384,6 +384,20 @@ fun PlayerContent(
                                     185 -> { setShowSettings(true); true } // Yellow
                                     186 -> { setShowQualityMenu(true); true } // Blue
                                     172 -> { setSplitView(true); true } // Guide
+                                    166, 87 -> { // KEYCODE_CHANNEL_UP or KEYCODE_MEDIA_NEXT
+                                        if (isLive) {
+                                            updateInteraction()
+                                            onZapping(true)
+                                            true
+                                        } else false
+                                    }
+                                    167, 88 -> { // KEYCODE_CHANNEL_DOWN or KEYCODE_MEDIA_PREVIOUS
+                                        if (isLive) {
+                                            updateInteraction()
+                                            onZapping(false)
+                                            true
+                                        } else false
+                                    }
                                     else -> false
                                 }
                             }
@@ -443,6 +457,7 @@ fun PlayerContent(
                         streamIcon = state.streamIcon,
                         currentProgram = currentProgram,
                         isControlsVisible = isControlsVisible,
+                        isReconnecting = state.isReconnecting,
                         onShowSettings = { setShowSettings(true) },
                         onToggleResize = onToggleResizeMode,
                         onShowAudio = { setShowSettings(true) },
@@ -500,6 +515,16 @@ fun PlayerContent(
                 program = zappingEpg.get(zappingChannel?.streamId),
                 isExpanded = isExpanded
             )
+
+            // Reconnection Discrete Badge
+            AnimatedVisibility(
+                visible = (uiState as? PlayerUiState.Playing)?.isReconnecting == true && !isControlsVisible,
+                enter = fadeIn() + slideInVertically(),
+                exit = fadeOut() + slideOutVertically(),
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 24.dp)
+            ) {
+                ReconnectingBadge()
+            }
 
             // Loading and Buffering indicators
             if (uiState is PlayerUiState.Loading) {

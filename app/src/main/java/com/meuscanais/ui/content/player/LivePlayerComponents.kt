@@ -38,11 +38,41 @@ import com.meuscanais.data.model.XtreamStream
 import com.meuscanais.util.rememberWindowInfo
 
 @Composable
+fun ReconnectingBadge() {
+    val tokens = AppDesignSystem
+    Surface(
+        color = tokens.colors.warning.copy(alpha = 0.2f),
+        shape = tokens.shapes.small,
+        border = BorderStroke(1.dp, tokens.colors.warning)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Refresh,
+                contentDescription = null,
+                tint = tokens.colors.warning,
+                modifier = Modifier.size(12.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = stringResource(R.string.reconnecting_stream).uppercase(),
+                style = tokens.typography.caption.copy(fontSize = 10.sp),
+                color = tokens.colors.warning,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
 fun BoxScope.LiveBottomOverlay(
     streamName: String,
     streamIcon: String?,
     currentProgram: EpgProgramme?,
     isControlsVisible: Boolean,
+    isReconnecting: Boolean = false,
     onShowSettings: () -> Unit,
     onToggleResize: () -> Unit,
     onShowAudio: () -> Unit,
@@ -93,6 +123,10 @@ fun BoxScope.LiveBottomOverlay(
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         LiveBadge()
+                        if (isReconnecting) {
+                            Spacer(modifier = Modifier.width(tokens.spacing.small))
+                            ReconnectingBadge()
+                        }
                         Spacer(modifier = Modifier.width(tokens.spacing.small))
                         Text(
                             text = streamName.uppercase(),

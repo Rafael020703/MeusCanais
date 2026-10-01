@@ -3,6 +3,7 @@ package com.meuscanais.core.domain.interactor
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -11,7 +12,10 @@ import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.meuscanais.data.service.MediaPlaybackService
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -37,6 +41,8 @@ class PlaybackManager @Inject constructor(
         data class TracksChanged(val tracks: Tracks) : Event()
         data class IsPlayingChanged(val isPlaying: Boolean) : Event()
         data class PlayerError(val error: PlaybackException) : Event()
+        data object NextChannelRequested : Event()
+        data object PreviousChannelRequested : Event()
     }
 
     private val _events = MutableSharedFlow<Event>(
@@ -53,6 +59,24 @@ class PlaybackManager @Inject constructor(
     
     private var _player: Player? = null
     val player: Player? get() = _player
+
+    private val controllerListener = object : MediaController.Listener {
+        override fun onCustomCommand(
+            controller: MediaController,
+            command: SessionCommand,
+            args: Bundle
+        ): ListenableFuture<SessionResult> {
+            when (command.customAction) {
+                MediaPlaybackService.ACTION_NEXT_CHANNEL -> {
+                    _events.tryEmit(Event.NextChannelRequested)
+                }
+                MediaPlaybackService.ACTION_PREVIOUS_CHANNEL -> {
+                    _events.tryEmit(Event.PreviousChannelRequested)
+                }
+            }
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+        }
+    }
 
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -81,7 +105,9 @@ class PlaybackManager @Inject constructor(
         if (controllerFuture != null) return
 
         val sessionToken = SessionToken(context, ComponentName(context, MediaPlaybackService::class.java))
-        controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
+        controllerFuture = MediaController.Builder(context, sessionToken)
+            .setListener(controllerListener)
+            .buildAsync()
         controllerFuture?.addListener({
             try {
                 val controller = controllerFuture?.get() ?: return@addListener
@@ -172,5 +198,13 @@ class PlaybackManager @Inject constructor(
                 .clearOverrides()
                 .build()
         }
+    }
+
+    fun requestNextChannel() {
+        _events.tryEmit(Event.NextChannelRequested)
+    }
+
+    fun requestPreviousChannel() {
+        _events.tryEmit(Event.PreviousChannelRequested)
     }
 }

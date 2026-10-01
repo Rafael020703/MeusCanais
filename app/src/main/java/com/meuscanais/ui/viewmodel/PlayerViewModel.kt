@@ -59,6 +59,7 @@ sealed class PlayerUiState(
         val nextEpisodeName: String? = null,
         val contentType: ContentType = ContentType.LIVE, 
         val isLive: Boolean = false,
+        val isReconnecting: Boolean = false,
         val savedPosition: Long? = null,
         val tracks: Tracks? = null,
         val isFavorite: Boolean = false,
@@ -129,7 +130,15 @@ class PlayerViewModel @Inject constructor(
 
         viewModelScope.launch {
             playbackManager.events.collect { event ->
-                handlePlaybackEvent(event)
+                when (event) {
+                    is PlaybackManager.Event.NextChannelRequested -> {
+                        playNextChannel()
+                    }
+                    is PlaybackManager.Event.PreviousChannelRequested -> {
+                        playPreviousChannel()
+                    }
+                    else -> handlePlaybackEvent(event)
+                }
             }
         }
     }
@@ -162,6 +171,7 @@ class PlayerViewModel @Inject constructor(
                 position = p.currentPosition,
                 duration = if (p.duration > 0) p.duration else 0L,
                 isPlaying = p.playWhenReady,
+                isReconnecting = false,
                 contentType = currentType,
                 isLive = isLive,
                 name = currentState.name,
@@ -279,6 +289,7 @@ class PlayerViewModel @Inject constructor(
 
                 _uiState.value = PlayerUiState.Error(message)
             }
+            else -> {}
         }
     }
 
@@ -319,6 +330,10 @@ class PlayerViewModel @Inject constructor(
         
         viewModelScope.launch {
             recoveryCount++
+            val currentState = _uiState.value
+            if (currentState is PlayerUiState.Playing) {
+                _uiState.value = currentState.copy(isReconnecting = true)
+            }
             when {
                 recoveryCount == 1 -> {
                     Timber.i("Watchdog: Tentativa 1 - Recarregando stream...")
@@ -481,28 +496,15 @@ class PlayerViewModel @Inject constructor(
 
         playJob = viewModelScope.launch {
             try {
-                val settings = settingsRepository.settingsFlow.first()
-                val credentials = settings.credentials ?: run {
-                    _uiState.value = PlayerUiState.Error("Credenciais não encontradas")
-                    return@launch
-                }
+                val credentials = appSettings.value.credentials 
+                    ?: settingsRepository.settingsFlow.first().credentials 
+                    ?: run {
+                        _uiState.value = PlayerUiState.Error("Credenciais não encontradas")
+                        return@launch
+                    }
                 
-                // Fetch basic stream info if not provided for UI consistency
-                val streams = catalogRepository.getStreamsByIds(listOf(streamId))
-                val stream = streams.firstOrNull { it.streamType == type.toString().uppercase() }
-                val isFav = stream?.isFavorite ?: false
-                val actualName = stream?.name ?: displayName ?: "Carregando..."
-                val actualIcon = stream?.logo ?: streamIcon
-
-                // Update UI again with actual name/logo from DB
-                val currentState = _uiState.value
-                if (currentState is PlayerUiState.Playing) {
-                    _uiState.value = currentState.copy(
-                        isFavorite = isFav,
-                        name = actualName,
-                        streamIcon = actualIcon
-                    )
-                }
+                val actualName = displayName ?: "Carregando..."
+                val actualIcon = streamIcon
 
                 Timber.d("Iniciando reprodução: $streamId ($actualName)")
                 
@@ -557,6 +559,23 @@ class PlayerViewModel @Inject constructor(
                 // Background tasks after starting playback
                 launch(Dispatchers.IO) {
                     if (type == ContentType.LIVE) {
+                        val streams = catalogRepository.getStreamsByIds(listOf(streamId))
+                        val stream = streams.firstOrNull { it.streamType == type.toString().uppercase() }
+                        val isFav = stream?.isFavorite ?: false
+                        val dbName = stream?.name ?: actualName
+                        val dbIcon = stream?.logo ?: actualIcon
+
+                        withContext(Dispatchers.Main) {
+                            val currentState = _uiState.value
+                            if (currentState is PlayerUiState.Playing && currentState.streamId == streamId) {
+                                _uiState.value = currentState.copy(
+                                    isFavorite = isFav,
+                                    name = dbName,
+                                    streamIcon = dbIcon
+                                )
+                            }
+                        }
+
                         if (stream != null) {
                             addToRecentChannels(XtreamStream(
                                 streamId = stream.id,
@@ -772,7 +791,7 @@ class PlayerViewModel @Inject constructor(
         if (streams.isEmpty()) return
         
         val currentIndex = streams.indexOfFirst { it.streamId == currentId }
-        val nextIndex = (currentIndex + 1) % streams.size
+        val nextIndex = if (currentIndex == -1) 0 else (currentIndex + 1) % streams.size
         val target = streams[nextIndex]
         
         Timber.i("Zapping: Próximo Canal (${target.name})")
@@ -884,17 +903,21 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun loadEpg(streamId: Int) {
+        val currentSession = _zappingSessionId.value
         viewModelScope.launch {
             try {
                 val result = getPlayerEpgUseCase(streamId)
+                if (_zappingSessionId.value != currentSession) return@launch
+                
                 _currentProgram.value = result.current
                 _nextPrograms.value = result.next
                 
                 val currentState = _uiState.value
-                if (currentState is PlayerUiState.Playing) {
+                if (currentState is PlayerUiState.Playing && currentState.streamId == streamId) {
                     _uiState.value = currentState.copy(epgListings = result.allListings)
                 }
             } catch (e: Exception) {
+                if (_zappingSessionId.value != currentSession) return@launch
                 Timber.e(e, "Erro ao carregar EPG")
                 _currentProgram.value = null
             }
