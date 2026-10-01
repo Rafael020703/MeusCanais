@@ -27,6 +27,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -44,7 +47,9 @@ import com.meuscanais.ui.viewmodel.PlayerUiState
 import com.meuscanais.ui.viewmodel.PlayerViewModel
 import com.meuscanais.util.DeviceType
 import com.meuscanais.util.rememberWindowInfo
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.seconds
 
 @Composable
@@ -87,6 +92,30 @@ fun PlayerScreen(
     // Split view state
     var isSplitView by remember { mutableStateOf(false) }
 
+    val coroutineScope = rememberCoroutineScope()
+    var overlayTimerJob by remember { mutableStateOf<Job?>(null) }
+
+    val hideOverlayImmediately: () -> Unit = {
+        overlayTimerJob?.cancel()
+        overlayTimerJob = null
+        isControlsVisible = false
+        zappingChannel = null
+    }
+
+    val showOverlayWith5sTimer: () -> Unit = {
+        overlayTimerJob?.cancel()
+        isControlsVisible = true
+        overlayTimerJob = coroutineScope.launch {
+            delay(5000L)
+            isControlsVisible = false
+            zappingChannel = null
+        }
+    }
+
+    LaunchedEffect(zappingSessionId) {
+        showOverlayWith5sTimer()
+    }
+
     val onZapping = { isNext: Boolean ->
         val streams = quickSwitchStreams
         val currentState = uiState as? PlayerUiState.Playing
@@ -105,6 +134,7 @@ fun PlayerScreen(
                 displayName = target.name,
                 streamIcon = target.streamIcon
             )
+            showOverlayWith5sTimer()
         }
     }
 
@@ -116,13 +146,17 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(isControlsVisible, lastInteraction, isSplitView, showSettings, showQualityMenu) {
-        if (isControlsVisible && !isSplitView && !showSettings && !showQualityMenu) {
-            val currentInteraction = lastInteraction
-            delay(8000)
-            if (lastInteraction == currentInteraction && !showSettings && !showQualityMenu) {
-                isControlsVisible = false
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                viewModel.stopPlayback()
             }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.stopPlayback()
         }
     }
 
@@ -137,7 +171,13 @@ fun PlayerScreen(
             quickSwitchStreams = quickSwitchStreams,
             zappingEpg = viewModel.zappingEpg.collectAsState().value,
             isControlsVisible = isControlsVisible,
-            onToggleControls = { isControlsVisible = !isControlsVisible },
+            onToggleControls = { 
+                if (isControlsVisible || zappingChannel != null) {
+                    hideOverlayImmediately()
+                } else {
+                    showOverlayWith5sTimer()
+                }
+            },
             onBack = { if (isSplitView) isSplitView = false else onBack() },
             onTogglePlayPause = { viewModel.togglePlayPause() },
             onSeek = { viewModel.seekTo(it) },

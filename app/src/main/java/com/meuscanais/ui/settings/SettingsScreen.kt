@@ -19,6 +19,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -36,6 +37,7 @@ import com.meuscanais.ui.dashboard.PortalBackground
 import com.meuscanais.ui.viewmodel.MainViewModel
 import com.meuscanais.ui.viewmodel.library.LibraryViewModel
 import com.meuscanais.ui.viewmodel.settings.SettingsViewModel
+import com.meuscanais.util.AppVersionProvider
 import com.meuscanais.util.NetworkDiagnostics
 import com.meuscanais.util.rememberWindowInfo
 import kotlinx.coroutines.delay
@@ -195,8 +197,10 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val context = LocalContext.current
+                    val appVersion = remember(context) { AppVersionProvider.getFormattedVersionName(context).uppercase() }
                     Text(
-                        text = "VERSÃO 1.0 PREMIUM",
+                        text = "VERSÃO $appVersion PREMIUM",
                         style = tokens.typography.caption.copy(fontSize = 11.sp),
                         color = tokens.colors.textSecondary.copy(alpha = 0.6f),
                         fontWeight = FontWeight.Bold,

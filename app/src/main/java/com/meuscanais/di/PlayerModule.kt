@@ -63,7 +63,6 @@ object PlayerModule {
     }
 
     @Provides
-    @Singleton
     @OptIn(UnstableApi::class)
     fun provideExoPlayer(
         @ApplicationContext context: Context,

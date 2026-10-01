@@ -139,6 +139,9 @@ class PlayerViewModel @Inject constructor(
     }
 
     private suspend fun ensurePlayer(): Player {
+        if (playbackManager.player == null) {
+            initializeController()
+        }
         while (playbackManager.player == null) {
             delay(100)
         }
@@ -880,8 +883,8 @@ class PlayerViewModel @Inject constructor(
 
     fun stopPlayback() {
         syncFinalProgress()
-        playbackManager.stop()
-        playbackManager.clearMediaItems()
+        stopWatchdog()
+        playbackManager.stopAndDisconnect()
         positionUpdateJob?.cancel()
     }
 
@@ -999,6 +1002,6 @@ class PlayerViewModel @Inject constructor(
 
     override fun onCleared() {
         stopWatchdog()
-        playbackManager.release()
+        stopPlayback()
     }
 }

@@ -37,19 +37,10 @@ runner = "1.6.2"
 coilCompose = "2.7.0"
 coilSvg = "2.7.0"
 retrofit = "3.0.0"
-converterMoshi = "3.0.0"
 kotlinxCoroutinesAndroid = "1.11.0"
 kotlinxCoroutinesCore = "1.11.0"
-accompanistPermissions = "0.37.3"
-playServicesLocation = "21.3.0"
-cameraCamera2 = "1.5.0"
-cameraLifecycle = "1.5.0"
-cameraView = "1.5.0"
-cameraCore = "1.5.0"
 loggingInterceptor = "5.4.0"
 okhttp = "5.4.0"
-moshiKotlin = "1.15.2"
-moshiKotlinCodegen = "1.15.2"
 datastorePreferences = "1.1.7"
 material = "1.14.0"
 hilt = "2.60.1"
@@ -60,8 +51,6 @@ timber = "5.0.1"
 paging = "3.5.1"
 firebaseBom = "33.1.2"
 googleServices = "4.4.2"
-libvlc = "3.7.5"
-ijkplayer = "0.8.8"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -110,19 +99,10 @@ androidx-compose-material-icons-extended = { group = "androidx.compose.material"
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coilCompose" }
 coil-svg = { group = "io.coil-kt", name = "coil-svg", version.ref = "coilSvg" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
-converter-moshi = { group = "com.squareup.retrofit2", name = "converter-moshi", version.ref = "converterMoshi" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutinesAndroid" }
 kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
-accompanist-permissions = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "accompanistPermissions" }
-play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
-androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraCamera2" }
-androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraLifecycle" }
-androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraView" }
-androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "cameraCore" }
 logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "loggingInterceptor" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
-moshi-kotlin = { group = "com.squareup.moshi", name = "moshi-kotlin", version.ref = "moshiKotlin" }
-moshi-kotlin-codegen = { group = "com.squareup.moshi", name = "moshi-kotlin-codegen", version.ref = "moshiKotlinCodegen" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePreferences" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
@@ -144,12 +124,6 @@ firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
 firebase-config = { group = "com.google.firebase", name = "firebase-config" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
-firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics" }
-libvlc-all = { group = "org.videolan.android", name = "libvlc-all", version.ref = "libvlc" }
-ijkplayer-java = { group = "tv.danmaku.ijk.media", name = "ijkplayer-java", version.ref = "ijkplayer" }
-ijkplayer-armv7a = { group = "tv.danmaku.ijk.media", name = "ijkplayer-armv7a", version.ref = "ijkplayer" }
-ijkplayer-arm64 = { group = "tv.danmaku.ijk.media", name = "ijkplayer-arm64", version.ref = "ijkplayer" }
-ijkplayer-x86 = { group = "tv.danmaku.ijk.media", name = "ijkplayer-x86", version.ref = "ijkplayer" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -158,4 +132,3 @@ google-devtools-ksp = { id = "com.google.devtools.ksp", version.ref = "googleDev
 jetbrains-kotlin-plugin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "jetbrainsKotlinPluginSerialization" }
 google-dagger-hilt-android = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
-

@@ -25,6 +25,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigationevent.NavigationEventDispatcher
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.meuscanais.appfunctions.AppFunctionActionBus
+import com.meuscanais.core.domain.interactor.PlaybackManager
 import com.meuscanais.core.navigation.AppController
 import com.meuscanais.core.navigation.MainNavigation
 import com.meuscanais.core.navigation.Route
@@ -107,6 +108,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    @Inject
+    lateinit var playbackManager: PlaybackManager
+
     override fun onStart() {
         super.onStart()
     }
@@ -121,9 +125,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        val inPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) isInPictureInPictureMode else false
+        if (!inPip && !isPipActive) {
+            playbackManager.pause()
+        }
     }
 
     override fun onDestroy() {
+        if (isFinishing) {
+            playbackManager.stopAndDisconnect()
+        }
         super.onDestroy()
     }
 
@@ -147,13 +158,6 @@ class MainActivity : AppCompatActivity() {
         }
         android.util.Log.e("BACK_NAV_DEBUG", "ACTIVITY_FINISH_CALLED")
         super.finish()
-    }
-
-    @Suppress("OVERRIDE_DEPRECATION")
-    override fun onBackPressed() {
-        // Log to check if this is still being called
-        android.util.Log.i("BACK_NAV_DEBUG", "LEGACY_ON_BACK_PRESSED_CALLED")
-        super.onBackPressed()
     }
 
 

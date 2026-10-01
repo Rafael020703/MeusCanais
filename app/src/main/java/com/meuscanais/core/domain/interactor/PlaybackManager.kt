@@ -2,6 +2,7 @@ package com.meuscanais.core.domain.interactor
 
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -105,6 +106,25 @@ class PlaybackManager @Inject constructor(
         controllerFuture = null
         _player = null
         _playerState.value = null
+    }
+
+    /**
+     * Stops playback completely, clears items, releases controller and stops MediaPlaybackService.
+     */
+    fun stopAndDisconnect() {
+        try {
+            _player?.stop()
+            _player?.clearMediaItems()
+        } catch (e: Exception) {
+            Timber.e(e, "Error stopping player")
+        }
+        release()
+        try {
+            val intent = Intent(context, MediaPlaybackService::class.java)
+            context.stopService(intent)
+        } catch (e: Exception) {
+            Timber.e(e, "Error stopping MediaPlaybackService")
+        }
     }
 
     // --- Technical Transport Commands ---

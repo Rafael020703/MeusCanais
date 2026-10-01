@@ -8,6 +8,7 @@ import com.meuscanais.data.repository.UpdateRepository
 import com.meuscanais.data.update.ApkDownloadManager
 import com.meuscanais.data.update.DownloadStatus
 import com.meuscanais.data.update.PackageInstallerHelper
+import com.meuscanais.data.update.VersionComparator
 import com.meuscanais.domain.model.AppUpdateInfo
 import com.meuscanais.domain.model.UpdateCheckResult
 import com.meuscanais.util.NotificationHelper
@@ -92,12 +93,17 @@ class UpdateViewModel @Inject constructor(
                         }
                     }
                     is DownloadStatus.Completed -> {
-                        downloadedApkFile = status.apkFile
-                        activeUpdateInfo = status.updateInfo
-                        if (PackageInstallerHelper.canRequestPackageInstalls(context)) {
-                            _uiState.value = UpdateUiState.ReadyToInstall(status.updateInfo, status.apkFile)
+                        if (VersionComparator.compareVersions(status.updateInfo.versionName, currentVersionName) <= 0) {
+                            apkDownloadManager.resetState()
+                            _uiState.value = UpdateUiState.UpToDate(currentVersionName)
                         } else {
-                            _uiState.value = UpdateUiState.PermissionRequired(status.updateInfo, status.apkFile)
+                            downloadedApkFile = status.apkFile
+                            activeUpdateInfo = status.updateInfo
+                            if (PackageInstallerHelper.canRequestPackageInstalls(context)) {
+                                _uiState.value = UpdateUiState.ReadyToInstall(status.updateInfo, status.apkFile)
+                            } else {
+                                _uiState.value = UpdateUiState.PermissionRequired(status.updateInfo, status.apkFile)
+                            }
                         }
                     }
                     is DownloadStatus.Failed -> {

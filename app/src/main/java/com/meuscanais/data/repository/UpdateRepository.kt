@@ -1,13 +1,14 @@
 package com.meuscanais.data.repository
 
 import android.content.Context
-import android.os.Build
 import com.meuscanais.data.update.*
 import com.meuscanais.domain.model.AppUpdateInfo
 import com.meuscanais.domain.model.UpdateCheckResult
+import com.meuscanais.util.AppVersionProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import timber.log.Timber
+import java.io.File
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,25 +21,10 @@ class UpdateRepository @Inject constructor(
 ) {
 
     val currentVersionName: String
-        get() = try {
-            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            packageInfo.versionName ?: "1.0"
-        } catch (_: Exception) {
-            "1.0"
-        }
+        get() = AppVersionProvider.getFormattedVersionName(context)
 
     val currentVersionCode: Long
-        get() = try {
-            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageInfo.longVersionCode
-            } else {
-                @Suppress("DEPRECATION")
-                packageInfo.versionCode.toLong()
-            }
-        } catch (_: Exception) {
-            1L
-        }
+        get() = AppVersionProvider.getVersionCode(context)
 
     suspend fun checkForUpdates(force: Boolean = false): UpdateCheckResult {
         try {
@@ -69,6 +55,9 @@ class UpdateRepository @Inject constructor(
 
             if (!VersionComparator.isUpdateAvailable(currentVersionName, cleanRemoteVersion)) {
                 settingsRepository.updateLastUpdateCheck(now, null)
+                try {
+                    File(context.cacheDir, "updates").deleteRecursively()
+                } catch (_: Exception) {}
                 return UpdateCheckResult.UpToDate(currentVersionName)
             }
 

@@ -3,6 +3,7 @@ package com.meuscanais.data.update
 import android.content.Context
 import com.meuscanais.di.ApiOkHttpClient
 import com.meuscanais.domain.model.AppUpdateInfo
+import com.meuscanais.util.AppVersionProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +43,14 @@ class ApkDownloadManager @Inject constructor(
         }
 
     suspend fun downloadApk(updateInfo: AppUpdateInfo) = withContext(Dispatchers.IO) {
+        val currentVersionName = AppVersionProvider.getVersionName(context)
+
+        if (VersionComparator.compareVersions(updateInfo.versionName, currentVersionName) <= 0) {
+            cleanOldUpdates()
+            _downloadStatus.value = DownloadStatus.Idle
+            return@withContext
+        }
+
         val cleanName = updateInfo.apkName.removeSuffix(".apk")
         val targetFile = File(updatesDir, "${cleanName}_${updateInfo.versionName}.apk")
         val tempFile = File(updatesDir, "${targetFile.name}.tmp")

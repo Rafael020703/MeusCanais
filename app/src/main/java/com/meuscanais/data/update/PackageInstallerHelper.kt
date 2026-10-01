@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import com.meuscanais.util.AppVersionProvider
 import timber.log.Timber
 import java.io.File
 
@@ -52,6 +53,16 @@ object PackageInstallerHelper {
                 Timber.e("O packageName do APK (%s) não coincide com o aplicativo instalado (%s)", packageInfo.packageName, context.packageName)
                 return false
             }
+
+            val apkVersionName = packageInfo.versionName ?: ""
+            val currentVersionName = AppVersionProvider.getVersionName(context)
+
+            if (VersionComparator.compareVersions(apkVersionName, currentVersionName) <= 0) {
+                Timber.i("O APK baixado (%s) não é mais recente que a versão instalada (%s). Limpando arquivo.", apkVersionName, currentVersionName)
+                try { apkFile.delete() } catch (_: Exception) {}
+                return false
+            }
+
             true
         } catch (e: Exception) {
             Timber.e(e, "Erro ao validar estrutura do arquivo APK antes da instalação")

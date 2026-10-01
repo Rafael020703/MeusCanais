@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import com.meuscanais.util.AppVersionProvider
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -401,10 +402,12 @@ fun AccountContent(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(tokens.spacing.large), verticalArrangement = Arrangement.spacedBy(tokens.spacing.medium)) {
+                                val context = LocalContext.current
+                                val appVersion = remember(context) { AppVersionProvider.getFormattedVersionName(context).uppercase() }
                                 SystemInfoRow("URL DO SERVIDOR", serverUrl, Icons.Rounded.CloudQueue)
                                 SystemInfoRow("ENDEREÇO IP", ipAddress, Icons.Rounded.Public)
                                 SystemInfoRow("ID DO DISPOSITIVO", deviceId, Icons.Rounded.Fingerprint)
-                                SystemInfoRow("VERSÃO DO APP", "1.0 PREMIUM", Icons.Rounded.Info)
+                                SystemInfoRow("VERSÃO DO APP", "$appVersion PREMIUM", Icons.Rounded.Info)
                             }
                         }
                     }

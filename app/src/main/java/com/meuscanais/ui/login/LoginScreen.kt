@@ -21,6 +21,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -33,6 +34,7 @@ import com.meuscanais.core.ui.components.common.adaptiveFocus
 import com.meuscanais.core.ui.components.inputs.AppTextField
 import com.meuscanais.core.ui.theme.*
 import com.meuscanais.ui.dashboard.PortalBackground
+import com.meuscanais.util.AppVersionProvider
 import kotlinx.coroutines.delay
 
 @Composable
@@ -439,8 +441,10 @@ private fun CompactLoginLayout(
             Spacer(modifier = Modifier.height(20.dp))
 
             // FOOTER
+            val context = LocalContext.current
+            val appVersion = remember(context) { AppVersionProvider.getFormattedVersionName(context).uppercase() }
             Text(
-                text = "MEUS CANAIS • V1.0 PREMIUM",
+                text = "MEUS CANAIS • $appVersion PREMIUM",
                 style = tokens.typography.caption.copy(fontSize = 11.sp),
                 color = tokens.colors.textSecondary.copy(alpha = 0.3f),
                 fontWeight = FontWeight.Bold,
@@ -771,8 +775,10 @@ private fun ExpandedLoginLayout(
 
         // FOOTER (EXIBIDO SE HOUVER ESPAÇO SUFICIENTE)
         if (screenHeight >= 420.dp) {
+            val context = LocalContext.current
+            val appVersion = remember(context) { AppVersionProvider.getFormattedVersionName(context).uppercase() }
             Text(
-                text = "MEUS CANAIS • V1.0 PREMIUM",
+                text = "MEUS CANAIS • $appVersion PREMIUM",
                 style = tokens.typography.caption.copy(fontSize = 11.sp),
                 color = tokens.colors.textSecondary.copy(alpha = 0.3f),
                 fontWeight = FontWeight.Bold,

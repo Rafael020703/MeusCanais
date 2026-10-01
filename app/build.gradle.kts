@@ -18,9 +18,9 @@ android {
     defaultConfig {
         applicationId = "com.meuscanais"
         minSdk = 24
-        targetSdk = 37
-        versionCode = 3
-        versionName = "1.2"
+        targetSdk = 35
+        versionCode = 4
+        versionName = "1.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -64,7 +64,6 @@ android {
         compose = true
         buildConfig = true
     }
-    compileSdkMinor = 0
     buildToolsVersion = "36.0.0"
 
     packaging {
@@ -140,9 +139,6 @@ dependencies {
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.datasource)
     implementation(libs.androidx.media3.datasource.okhttp)
-    
-    // XML Parsing (XmlUtil)
-    implementation(libs.xmlutil.serialization)
 
     testImplementation(libs.androidx.core)
     testImplementation(libs.androidx.junit)
