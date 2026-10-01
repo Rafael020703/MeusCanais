@@ -93,6 +93,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.updateSmartDownloads(enabled) }
     }
 
+    fun updateBackgroundPlaybackEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.updateBackgroundPlaybackEnabled(enabled) }
+    }
+
     fun updateDetailedNotifications(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.updateDetailedNotifications(enabled) }
     }

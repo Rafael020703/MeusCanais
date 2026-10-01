@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+
+    <!-- Deep Cinematic Background -->
+    <path
+        android:pathData="M0,0h320v180h-320z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="320"
+                android:endY="180"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF0B0E14" />
+                <item android:offset="0.5" android:color="#FF121824" />
+                <item android:offset="1.0" android:color="#FF080A0F" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Subtle Brand Glow Accent -->
+    <path
+        android:pathData="M-40,90c0,-70 60,-130 130,-130c70,0 130,60 130,130c0,70 -60,130 -130,130c-70,0 -130,-60 -130,-130z"
+        android:fillAlpha="0.18">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="-40"
+                android:startY="-40"
+                android:endX="220"
+                android:endY="220"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#00E5FF" />
+                <item android:offset="1.0" android:color="#D500F9" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Outer Brand Hexagon / Ring -->
+    <path
+        android:pathData="M70,55c-19.3,0 -35,15.7 -35,35s15.7,35 35,35s35,-15.7 35,-35s-15.7,-35 -35,-35zM70,118c-15.5,0 -28,-12.5 -28,-28s12.5,-28 28,-28s28,12.5 28,28s-12.5,28 -28,28z"
+        android:fillAlpha="0.3">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="35"
+                android:startY="55"
+                android:endX="105"
+                android:endY="125"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#00E5FF" />
+                <item android:offset="1.0" android:color="#D500F9" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Play Icon Triangle -->
+    <path
+        android:pathData="M91,90L61,106L61,74L91,90Z"
+        android:fillColor="#FFFFFF" />
+
+    <!-- Signal Arcs -->
+    <path
+        android:pathData="M50,90c0,-11 9,-20 20,-20"
+        android:strokeWidth="3.5"
+        android:strokeColor="#00E5FF"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M43,90c0,-14.9 12.1,-27 27,-27"
+        android:strokeWidth="3.5"
+        android:strokeColor="#D500F9"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- Title Text Vector Elements ("MEUS CANAIS") -->
+    <!-- M -->
+    <path android:fillColor="#FFFFFF" android:pathData="M125,72h5l7,16l7,-16h5v24h-4v-17l-6,14h-4l-6,-14v17h-4z" />
+    <!-- E -->
+    <path android:fillColor="#FFFFFF" android:pathData="M154,72h14v4h-10v5h9v4h-9v7h10v4h-14z" />
+    <!-- U -->
+    <path android:fillColor="#FFFFFF" android:pathData="M172,72h4v15c0,4 2,6 6,6c4,0 6,-2 6,-6v-15h4v15c0,7 -4,10 -10,10c-6,0 -10,-3 -10,-10z" />
+    <!-- S -->
+    <path android:fillColor="#FFFFFF" android:pathData="M196,91c1,2 3,3 6,3c2,0 4,-1 4,-3c0,-2 -1,-3 -5,-4c-5,-1 -8,-3 -8,-7c0,-4 4,-8 9,-8c5,0 9,3 10,7h-4c-1,-2 -3,-3 -6,-3c-3,0 -5,1 -5,3c0,2 2,3 5,4c5,1 8,3 8,7c0,5 -4,8 -10,8c-5,0 -9,-3 -10,-8z" />
+
+    <!-- C -->
+    <path android:fillColor="#00E5FF" android:pathData="M222,91c1,3 4,5 8,5c4,0 7,-2 8,-5h4c-1,5 -5,9 -12,9c-7,0 -12,-4 -12,-12c0,-7 5,-12 12,-12c7,0 11,4 12,9h-4c-1,-3 -4,-5 -8,-5c-4,0 -7,2 -8,5c-1,2 -1,5 0,6z" />
+    <!-- A -->
+    <path android:fillColor="#00E5FF" android:pathData="M245,72h4l9,24h-5l-2,-5h-8l-2,5h-5zM249,87l-3,-9l-3,9z" />
+    <!-- N -->
+    <path android:fillColor="#00E5FF" android:pathData="M261,72h4l10,16v-16h4v24h-4l-10,-16v16h-4z" />
+    <!-- A -->
+    <path android:fillColor="#00E5FF" android:pathData="M282,72h4l9,24h-5l-2,-5h-8l-2,5h-5zM286,87l-3,-9l-3,9z" />
+    <!-- I -->
+    <path android:fillColor="#00E5FF" android:pathData="M298,72h4v24h-4z" />
+    <!-- S -->
+    <path android:fillColor="#00E5FF" android:pathData="M305,91c1,2 3,3 6,3c2,0 4,-1 4,-3c0,-2 -1,-3 -5,-4c-5,-1 -8,-3 -8,-7c0,-4 4,-8 9,-8c5,0 9,3 10,7h-4c-1,-2 -3,-3 -6,-3c-3,0 -5,1 -5,3c0,2 2,3 5,4c5,1 8,3 8,7c0,5 -4,8 -10,8c-5,0 -9,-3 -10,-8z" />
+
+    <!-- Subtitle Line ("IPTV PREMIUM") -->
+    <path
+        android:pathData="M125,103h180"
+        android:strokeWidth="1"
+        android:strokeColor="#33FFFFFF" />
+
+</vector>

@@ -1,11 +1,13 @@
 package com.meuscanais.ui.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
@@ -519,9 +521,27 @@ class PlayerViewModel @Inject constructor(
                 ensurePlayer()
                 
                 withContext(Dispatchers.Main) {
+                    val metadataBuilder = MediaMetadata.Builder()
+                        .setTitle(actualName)
+                        .setDisplayTitle(actualName)
+                        .setArtist(when (type) {
+                            ContentType.LIVE -> application.getString(R.string.live_tv_title)
+                            ContentType.SERIES -> application.getString(R.string.series_title)
+                            ContentType.MOVIE -> application.getString(R.string.movies_title)
+                            else -> "Meus Canais"
+                        })
+                        .setIsPlayable(true)
+
+                    if (!actualIcon.isNullOrBlank()) {
+                        try {
+                            metadataBuilder.setArtworkUri(Uri.parse(actualIcon))
+                        } catch (_: Exception) {}
+                    }
+
                     val mediaItem = MediaItem.Builder()
                         .setUri(url)
                         .setMediaId(streamId.toString())
+                        .setMediaMetadata(metadataBuilder.build())
                         .setLiveConfiguration(
                             MediaItem.LiveConfiguration.Builder()
                                 .setTargetOffsetMs(if (type == ContentType.LIVE) 2000L else 5000L) 

@@ -1,6 +1,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class, UnstableApi::class)
 package com.meuscanais.ui.content
 
+import android.app.Activity
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -34,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
+import com.meuscanais.MainActivity
 import com.meuscanais.R
 import com.meuscanais.core.ui.components.buttons.*
 import com.meuscanais.core.ui.components.common.DigitalClock
@@ -146,17 +148,33 @@ fun PlayerScreen(
         }
     }
 
+    val mainActivity = context as? MainActivity
+
+    LaunchedEffect(uiState) {
+        val isPlaying = uiState is PlayerUiState.Playing
+        mainActivity?.setCanEnterPip(isPlaying)
+    }
+
+    val isBgPlaybackEnabled = appSettings.backgroundPlaybackEnabled
+
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) {
-                viewModel.stopPlayback()
+                val isInPip = mainActivity?.isInPictureInPictureMode == true
+                if (!isInPip && !isBgPlaybackEnabled) {
+                    viewModel.stopPlayback()
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-            viewModel.stopPlayback()
+            val isInPip = mainActivity?.isInPictureInPictureMode == true
+            if (!isInPip) {
+                viewModel.stopPlayback()
+            }
+            mainActivity?.setCanEnterPip(false)
         }
     }
 
@@ -290,6 +308,9 @@ fun PlayerContent(
     val context = LocalContext.current
     val tokens = AppDesignSystem
 
+    val activity = context as? Activity
+    val isInPip = activity?.isInPictureInPictureMode == true
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -399,147 +420,150 @@ fun PlayerContent(
             }
         }
 
-        // Split View UI
-        if (isSplitView) {
-            val state = uiState as? PlayerUiState.Playing
-            LiveSplitView(
-                categoryName = stringResource(R.string.tv_catalog_label), 
-                channels = quickSwitchStreams,
-                selectedChannelId = state?.streamId ?: 0,
-                currentProgram = currentProgram,
-                onChannelSelect = onSwitchStream
-            )
-        }
-
-        // Full Screen Overlay
-        if (!isSplitView && uiState is PlayerUiState.Playing) {
-            val state = uiState as PlayerUiState.Playing
-            if (state.isLive) {
-                LiveBottomOverlay(
-                    streamName = state.name ?: streamName,
-                    streamIcon = state.streamIcon,
+        // Hide all controls, overlays, clocks and dialogs when in Picture-in-Picture mode
+        if (!isInPip) {
+            // Split View UI
+            if (isSplitView) {
+                val state = uiState as? PlayerUiState.Playing
+                LiveSplitView(
+                    categoryName = stringResource(R.string.tv_catalog_label), 
+                    channels = quickSwitchStreams,
+                    selectedChannelId = state?.streamId ?: 0,
                     currentProgram = currentProgram,
-                    isControlsVisible = isControlsVisible,
-                    onShowSettings = { setShowSettings(true) },
-                    onToggleResize = onToggleResizeMode,
-                    onShowAudio = { setShowSettings(true) },
-                    onShowSubtitles = { setShowSettings(true) }
+                    onChannelSelect = onSwitchStream
                 )
+            }
 
-                AnimatedVisibility(
-                    visible = isControlsVisible,
-                    enter = fadeIn() + expandHorizontally(),
-                    exit = fadeOut() + shrinkHorizontally(),
-                    modifier = Modifier.align(Alignment.CenterEnd)
-                ) {
-                    ZappingEdgeControl(
-                        onNext = { onZapping(true) },
-                        onPrev = { onZapping(false) }
-                    )
-                }
-            } else {
-                AnimatedVisibility(visible = isControlsVisible, enter = fadeIn(), exit = fadeOut()) {
-                    PlayerControlOverlay(
+            // Full Screen Overlay
+            if (!isSplitView && uiState is PlayerUiState.Playing) {
+                val state = uiState as PlayerUiState.Playing
+                if (state.isLive) {
+                    LiveBottomOverlay(
                         streamName = state.name ?: streamName,
                         streamIcon = state.streamIcon,
-                        uiState = state,
                         currentProgram = currentProgram,
-                        nextPrograms = nextPrograms,
-                        recentChannels = recentChannels,
-                        focusRequester = focusRequester,
-                        isExpanded = isExpanded,
-                        isTv = isTv,
-                        onBack = onBack,
-                        onTogglePlayPause = onTogglePlayPause,
-                        onSeek = onSeek,
-                        onSeekForward = onSeekForward,
-                        onSeekBack = onSeekBack,
-                        onNextEpisode = onNextEpisode,
+                        isControlsVisible = isControlsVisible,
                         onShowSettings = { setShowSettings(true) },
-                        onShowChannels = { setSplitView(true) },
-                        onShowQuality = { setShowQualityMenu(true) },
-                        onShowSpeed = { },
-                        onToggleFavorite = onToggleFavorite,
-                        onToggleResizeMode = onToggleResizeMode,
-                        onToggleLock = { onToggleLock(true) },
-                        onReload = onReload,
-                        onEnterPip = { },
-                        onSwitchStream = onSwitchStream
+                        onToggleResize = onToggleResizeMode,
+                        onShowAudio = { setShowSettings(true) },
+                        onShowSubtitles = { setShowSettings(true) }
+                    )
+
+                    AnimatedVisibility(
+                        visible = isControlsVisible,
+                        enter = fadeIn() + expandHorizontally(),
+                        exit = fadeOut() + shrinkHorizontally(),
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    ) {
+                        ZappingEdgeControl(
+                            onNext = { onZapping(true) },
+                            onPrev = { onZapping(false) }
+                        )
+                    }
+                } else {
+                    AnimatedVisibility(visible = isControlsVisible, enter = fadeIn(), exit = fadeOut()) {
+                        PlayerControlOverlay(
+                            streamName = state.name ?: streamName,
+                            streamIcon = state.streamIcon,
+                            uiState = state,
+                            currentProgram = currentProgram,
+                            nextPrograms = nextPrograms,
+                            recentChannels = recentChannels,
+                            focusRequester = focusRequester,
+                            isExpanded = isExpanded,
+                            isTv = isTv,
+                            onBack = onBack,
+                            onTogglePlayPause = onTogglePlayPause,
+                            onSeek = onSeek,
+                            onSeekForward = onSeekForward,
+                            onSeekBack = onSeekBack,
+                            onNextEpisode = onNextEpisode,
+                            onShowSettings = { setShowSettings(true) },
+                            onShowChannels = { setSplitView(true) },
+                            onShowQuality = { setShowQualityMenu(true) },
+                            onShowSpeed = { },
+                            onToggleFavorite = onToggleFavorite,
+                            onToggleResizeMode = onToggleResizeMode,
+                            onToggleLock = { onToggleLock(true) },
+                            onReload = onReload,
+                            onEnterPip = { },
+                            onSwitchStream = onSwitchStream
+                        )
+                    }
+                }
+            }
+
+            // Zapping Banner
+            ZappingBanner(
+                isVisible = zappingChannel != null,
+                channel = zappingChannel,
+                program = zappingEpg.get(zappingChannel?.streamId),
+                isExpanded = isExpanded
+            )
+
+            // Loading and Buffering indicators
+            if (uiState is PlayerUiState.Loading) {
+                BrandedLoadingScreen(message = stringResource(R.string.starting_playback))
+            }
+            
+            // Countdown for Next Episode
+            if (countdown != null && !isControlsVisible) {
+                Box(modifier = Modifier.fillMaxSize().padding(tokens.spacing.extraLarge), contentAlignment = Alignment.BottomEnd) {
+                     NextEpisodeCountdown(
+                         seconds = countdown, 
+                         onWatchNow = onNextEpisode, 
+                         onCancel = onCancelCountdown
+                     )
+                }
+            }
+
+            // Settings Dialog
+            if (showSettings && uiState is PlayerUiState.Playing) { 
+                val state = uiState as PlayerUiState.Playing
+                PlayerSettingsDialog(
+                    tracks = state.tracks, 
+                    sleepTimer = sleepTimer,
+                    subtitleSize = subtitleSize,
+                    onDismiss = { setShowSettings(false) }, 
+                    onSelectTrack = onSelectTrack, 
+                    onClearOverride = onClearTrackOverride,
+                    onSetSleepTimer = onSetSleepTimer,
+                    onSetSubtitleSize = onSetSubtitleSize
+                ) 
+            }
+
+            // Digit Entry Overlay
+            AnimatedVisibility(
+                visible = digitBuffer.isNotEmpty(),
+                enter = fadeIn() + scaleIn(initialScale = 0.8f),
+                exit = fadeOut() + scaleOut(targetScale = 1.1f),
+                modifier = Modifier.align(Alignment.TopEnd).padding(48.dp)
+            ) {
+                Surface(
+                    color = tokens.colors.primary,
+                    shape = tokens.shapes.medium,
+                    tonalElevation = 8.dp
+                ) {
+                    Text(
+                        text = digitBuffer,
+                        style = tokens.typography.display,
+                        fontWeight = FontWeight.Black,
+                        color = Color.Black,
+                        modifier = Modifier.padding(horizontal = 32.dp, vertical = 16.dp)
                     )
                 }
             }
-        }
 
-        // Zapping Banner
-        ZappingBanner(
-            isVisible = zappingChannel != null,
-            channel = zappingChannel,
-            program = zappingEpg.get(zappingChannel?.streamId),
-            isExpanded = isExpanded
-        )
-
-        // Loading and Buffering indicators
-        if (uiState is PlayerUiState.Loading) {
-            BrandedLoadingScreen(message = stringResource(R.string.starting_playback))
-        }
-        
-        // Countdown for Next Episode
-        if (countdown != null && !isControlsVisible) {
-            Box(modifier = Modifier.fillMaxSize().padding(tokens.spacing.extraLarge), contentAlignment = Alignment.BottomEnd) {
-                 NextEpisodeCountdown(
-                     seconds = countdown, 
-                     onWatchNow = onNextEpisode, 
-                     onCancel = onCancelCountdown
-                 )
-            }
-        }
-
-        // Settings Dialog
-        if (showSettings && uiState is PlayerUiState.Playing) { 
-            val state = uiState as PlayerUiState.Playing
-            PlayerSettingsDialog(
-                tracks = state.tracks, 
-                sleepTimer = sleepTimer,
-                subtitleSize = subtitleSize,
-                onDismiss = { setShowSettings(false) }, 
-                onSelectTrack = onSelectTrack, 
-                onClearOverride = onClearTrackOverride,
-                onSetSleepTimer = onSetSleepTimer,
-                onSetSubtitleSize = onSetSubtitleSize
-            ) 
-        }
-
-        // Digit Entry Overlay
-        AnimatedVisibility(
-            visible = digitBuffer.isNotEmpty(),
-            enter = fadeIn() + scaleIn(initialScale = 0.8f),
-            exit = fadeOut() + scaleOut(targetScale = 1.1f),
-            modifier = Modifier.align(Alignment.TopEnd).padding(48.dp)
-        ) {
-            Surface(
-                color = tokens.colors.primary,
-                shape = tokens.shapes.medium,
-                tonalElevation = 8.dp
-            ) {
-                Text(
-                    text = digitBuffer,
-                    style = tokens.typography.display,
-                    fontWeight = FontWeight.Black,
-                    color = Color.Black,
-                    modifier = Modifier.padding(horizontal = 32.dp, vertical = 16.dp)
+            // Global Clock in Player
+            if (isControlsVisible) {
+                DigitalClock(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(tokens.spacing.extraLarge),
+                    textStyle = tokens.typography.title.copy(color = tokens.colors.textPrimary.copy(alpha = 0.8f)),
+                    format = "HH:mm"
                 )
             }
-        }
-
-        // Global Clock in Player
-        if (isControlsVisible) {
-            DigitalClock(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(tokens.spacing.extraLarge),
-                textStyle = tokens.typography.title.copy(color = tokens.colors.textPrimary.copy(alpha = 0.8f)),
-                format = "HH:mm"
-            )
         }
     }
 }

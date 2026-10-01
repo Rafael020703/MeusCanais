@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.util.Rational
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -26,6 +27,9 @@ import androidx.navigationevent.NavigationEventDispatcher
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.meuscanais.appfunctions.AppFunctionActionBus
 import com.meuscanais.core.domain.interactor.PlaybackManager
+import com.meuscanais.data.repository.SettingsRepository
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import com.meuscanais.core.navigation.AppController
 import com.meuscanais.core.navigation.MainNavigation
 import com.meuscanais.core.navigation.Route
@@ -50,6 +54,17 @@ class MainActivity : AppCompatActivity() {
 
     fun setCanEnterPip(value: Boolean) {
         canEnterPip = value
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                val params = PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                    .setAutoEnterEnabled(value)
+                    .build()
+                setPictureInPictureParams(params)
+            } catch (e: Exception) {
+                Log.e("PIP_DEBUG", "Error setting PiP params: ${e.message}")
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -111,6 +126,9 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var playbackManager: PlaybackManager
 
+    @Inject
+    lateinit var settingsRepository: SettingsRepository
+
     override fun onStart() {
         super.onStart()
     }
@@ -126,7 +144,11 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         val inPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) isInPictureInPictureMode else false
-        if (!inPip && !isPipActive) {
+        val isBgEnabled = runCatching {
+            runBlocking { settingsRepository.settingsFlow.first().backgroundPlaybackEnabled }
+        }.getOrDefault(false)
+
+        if (!inPip && !isPipActive && !isBgEnabled) {
             playbackManager.pause()
         }
     }

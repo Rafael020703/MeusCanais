@@ -104,6 +104,7 @@ class SettingsRepository @Inject constructor(
         val PREFERRED_SUBTITLE_LANG = stringPreferencesKey("preferred_subtitle_lang")
         val ACTIVE_PROFILE_ID = stringPreferencesKey("active_profile_id")
         val DETAILED_NOTIFICATIONS = booleanPreferencesKey("detailed_notifications")
+        val BACKGROUND_PLAYBACK_ENABLED = booleanPreferencesKey("background_playback_enabled")
         
         val LAST_LIVE_CATEGORY = stringPreferencesKey("last_live_category")
         val LAST_MOVIE_CATEGORY = stringPreferencesKey("last_movie_category")
@@ -153,6 +154,7 @@ class SettingsRepository @Inject constructor(
         val preferredSubtitleLang: String? = null,
         val activeProfileId: String = "default",
         val detailedNotifications: Boolean = true,
+        val backgroundPlaybackEnabled: Boolean = false,
         val lastLiveCategory: String? = null,
         val lastMovieCategory: String? = null,
         val lastSeriesCategory: String? = null,
@@ -209,6 +211,7 @@ class SettingsRepository @Inject constructor(
         val subLang = preferences[PreferencesKeys.PREFERRED_SUBTITLE_LANG]
         val profileId = preferences[PreferencesKeys.ACTIVE_PROFILE_ID] ?: "default"
         val detailedNotifs = preferences[PreferencesKeys.DETAILED_NOTIFICATIONS] ?: true
+        val bgPlaybackEnabled = preferences[PreferencesKeys.BACKGROUND_PLAYBACK_ENABLED] ?: false
         
         val lastLive = preferences[PreferencesKeys.LAST_LIVE_CATEGORY]
         val lastMovie = preferences[PreferencesKeys.LAST_MOVIE_CATEGORY]
@@ -247,7 +250,7 @@ class SettingsRepository @Inject constructor(
             lastSyncLive, lastSyncVod, lastSyncSeries,
             bufferStrat, oledTheme, dataSaver, zoom, language,
             lastSync, interval, pin, autoPlay, resizeMode, diagnostics, compact, hideBlocked, appLock,
-            downloadWifiOnly, smartDownloads, audioLang, subLang, profileId, detailedNotifs,
+            downloadWifiOnly, smartDownloads, audioLang, subLang, profileId, detailedNotifs, bgPlaybackEnabled,
             lastLive, lastMovie, lastSeries,
             cachedUserInfo,
             lastUpdateCheck, lastAvailableVersion, lastNotifiedVersion, ignoredVersion
@@ -520,6 +523,12 @@ class SettingsRepository @Inject constructor(
     suspend fun updateDetailedNotifications(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.DETAILED_NOTIFICATIONS] = enabled
+        }
+    }
+
+    suspend fun updateBackgroundPlaybackEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.BACKGROUND_PLAYBACK_ENABLED] = enabled
         }
     }
 

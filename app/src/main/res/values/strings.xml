@@ -220,6 +220,8 @@
     <string name="player_settings_section">Player</string>
     <string name="auto_play_label">Auto-reprodução de Episódios</string>
     <string name="auto_play_desc">Inicia o próximo episódio automaticamente.</string>
+    <string name="background_playback_label">Reprodução em Segundo Plano</string>
+    <string name="background_playback_desc">Permite continuar ouvindo o áudio ao minimizar o aplicativo.</string>
     <string name="use_external_player_label">Player Externo</string>
     <string name="use_external_player_desc">Abrir streams no VLC ou MX Player.</string>
     <string name="show_diagnostics_label">Mostrar Estatísticas de Rede</string>

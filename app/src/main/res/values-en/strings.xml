@@ -220,6 +220,8 @@
     <string name="player_settings_section">Player</string>
     <string name="auto_play_label">Auto-play Episodes</string>
     <string name="auto_play_desc">Starts the next episode automatically.</string>
+    <string name="background_playback_label">Background Playback</string>
+    <string name="background_playback_desc">Allows audio playback to continue when minimizing the app.</string>
     <string name="use_external_player_label">External Player</string>
     <string name="use_external_player_desc">Open streams in VLC or MX Player.</string>
     <string name="show_diagnostics_label">Show Network Stats</string>

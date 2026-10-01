@@ -59,6 +59,7 @@ enum class SettingsCategory(val labelRes: Int, val icon: ImageVector) {
     PLAYER_ENGINE(R.string.video_quality_section, Icons.Rounded.SettingsInputComponent),
     BUFFER(R.string.buffer_strategy_label, Icons.Rounded.Memory),
     AUTO_PLAY(R.string.auto_play_label, Icons.AutoMirrored.Rounded.PlaylistPlay),
+    BACKGROUND_PLAYBACK(R.string.background_playback_label, Icons.Rounded.Headphones),
     DIAGNOSTICS(R.string.show_diagnostics_label, Icons.Rounded.Analytics),
     PARENTAL(R.string.parental_control_label, Icons.Rounded.Lock),
     HIDE_LOCKED(R.string.hide_blocked_label, Icons.Rounded.VisibilityOff),
@@ -361,6 +362,14 @@ fun SettingsScreen(
                                 checked = settings.autoPlayEnabled,
                                 description = "Iniciar próximo episódio ou canal automaticamente.",
                                 onCheckedChange = { settingsViewModel.updateAutoPlay(it) }
+                            )
+                        }
+                        SettingsCategory.BACKGROUND_PLAYBACK -> {
+                            SettingsToggle(
+                                label = stringResource(R.string.background_playback_label).uppercase(),
+                                checked = settings.backgroundPlaybackEnabled,
+                                description = stringResource(R.string.background_playback_desc),
+                                onCheckedChange = { settingsViewModel.updateBackgroundPlaybackEnabled(it) }
                             )
                         }
                         SettingsCategory.DIAGNOSTICS -> {
