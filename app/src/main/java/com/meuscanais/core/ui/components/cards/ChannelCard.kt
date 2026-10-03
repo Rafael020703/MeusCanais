@@ -1,5 +1,6 @@
 package com.meuscanais.core.ui.components.cards
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,6 +17,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.meuscanais.core.ui.theme.*
 import com.meuscanais.domain.model.IptvItem
@@ -35,6 +37,16 @@ fun ChannelCard(
     val fontSize = responsive.sp(tokens.typography.caption.fontSize)
     val cardPadding = responsive.dp(tokens.spacing.small)
     val iconSize = responsive.dp(20.dp)
+
+    val highestQuality = remember(item.qualities) {
+        when {
+            item.qualities.containsKey("4K") -> "4K"
+            item.qualities.containsKey("FHD") -> "FHD"
+            item.qualities.containsKey("HD") -> "HD"
+            item.qualities.containsKey("SD") -> "SD"
+            else -> item.qualities.keys.firstOrNull()
+        }
+    }
 
     Column(
         modifier = modifier
@@ -70,6 +82,30 @@ fun ChannelCard(
                         )
                     )
             )
+
+            if (!highestQuality.isNullOrEmpty() && highestQuality != "AUTO") {
+                val qualityColor = when (highestQuality) {
+                    "4K" -> Color(0xFFFFD700)
+                    "FHD", "1080P" -> tokens.colors.primary
+                    "HD", "720P" -> tokens.colors.success
+                    else -> tokens.colors.textSecondary
+                }
+                Surface(
+                    color = Color.Black.copy(alpha = 0.6f),
+                    shape = tokens.shapes.small,
+                    border = BorderStroke(1.dp, qualityColor.copy(alpha = 0.5f)),
+                    modifier = Modifier.align(Alignment.TopStart).padding(cardPadding)
+                ) {
+                    Text(
+                        text = highestQuality,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        style = tokens.typography.caption,
+                        fontWeight = FontWeight.Black,
+                        color = qualityColor,
+                        fontSize = 9.sp
+                    )
+                }
+            }
 
             if (item.isFavorite) {
                 Icon(

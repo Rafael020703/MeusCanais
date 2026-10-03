@@ -39,7 +39,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import javax.inject.Inject
-import androidx.core.content.ContextCompat
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import kotlin.time.Duration.Companion.seconds
 
@@ -108,6 +107,27 @@ class PlayerViewModel @Inject constructor(
     private val _zappingSessionId = MutableStateFlow(0)
     val zappingSessionId: StateFlow<Int> = _zappingSessionId.asStateFlow()
 
+    private val _zappingChannel = MutableStateFlow<XtreamStream?>(null)
+    val zappingChannel: StateFlow<XtreamStream?> = _zappingChannel.asStateFlow()
+
+    private var zappingTimerJob: Job? = null
+    private var lastLoadedCategoryId: String? = null
+    private var epgJob: Job? = null
+
+    private fun showZappingBanner(stream: XtreamStream) {
+        _zappingChannel.value = stream
+        zappingTimerJob?.cancel()
+        zappingTimerJob = viewModelScope.launch {
+            delay(5000L)
+            _zappingChannel.value = null
+        }
+    }
+
+    fun dismissZappingBanner() {
+        zappingTimerJob?.cancel()
+        _zappingChannel.value = null
+    }
+
     init {
         initializeController()
         
@@ -159,9 +179,26 @@ class PlayerViewModel @Inject constructor(
         return playbackManager.player!!
     }
 
-    private fun updatePlayingState(p: Player) {
+    private fun isPlaybackEventValid(sessionId: Int, eventMediaId: String? = null): Boolean {
+        val activeSession = _zappingSessionId.value
+        if (sessionId != activeSession) {
+            Timber.w("[STALE_CALLBACK_IGNORED] session=$sessionId != activeSession=$activeSession, currentStream=$currentStreamId, eventMediaId=$eventMediaId")
+            return false
+        }
+        if (!eventMediaId.isNullOrBlank() && currentStreamId != null && eventMediaId != currentStreamId.toString()) {
+            Timber.w("[STALE_CALLBACK_IGNORED] session=$sessionId, eventMediaId=$eventMediaId != currentStreamId=$currentStreamId")
+            return false
+        }
+        return true
+    }
+
+    private fun updatePlayingState(p: Player, sessionId: Int = _zappingSessionId.value) {
+        val playerMediaId = p.currentMediaItem?.mediaId
+        if (!isPlaybackEventValid(sessionId, playerMediaId)) return
         val isLive = currentType == ContentType.LIVE
         val currentState = _uiState.value
+        val resolvedIcon = currentStreamIcon
+        Timber.d("[ARTWORK][session=$sessionId][stream=$currentStreamId] updatePlayingState -> resolvedIcon=$resolvedIcon")
         
         val videoFormat = p.currentTracks.groups.find { it.type == C.TRACK_TYPE_VIDEO && it.isSelected }?.getTrackFormat(0)
         val audioFormat = p.currentTracks.groups.find { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }?.getTrackFormat(0)
@@ -175,6 +212,7 @@ class PlayerViewModel @Inject constructor(
                 contentType = currentType,
                 isLive = isLive,
                 name = currentState.name,
+                streamIcon = resolvedIcon,
                 nextEpisodeStreamId = nextEpisodeStreamId,
                 nextEpisodeName = nextEpisodeName,
                 tracks = p.currentTracks,
@@ -194,6 +232,7 @@ class PlayerViewModel @Inject constructor(
                 contentType = currentType,
                 isLive = isLive,
                 name = currentDisplayName ?: currentState.name,
+                streamIcon = resolvedIcon,
                 nextEpisodeStreamId = nextEpisodeStreamId,
                 nextEpisodeName = nextEpisodeName,
                 tracks = p.currentTracks,
@@ -210,61 +249,81 @@ class PlayerViewModel @Inject constructor(
 
     private fun handlePlaybackEvent(event: PlaybackManager.Event) {
         val p = playbackManager.player ?: return
+        val currentSession = _zappingSessionId.value
+        val playerMediaId = p.currentMediaItem?.mediaId
+
+        if (!isPlaybackEventValid(currentSession, playerMediaId)) {
+            return
+        }
         
         when (event) {
             is PlaybackManager.Event.PlaybackStateChanged -> {
-                if (event.state == Player.STATE_BUFFERING) {
-                    rebufferingCount++
-                    val currentName = (_uiState.value as? PlayerUiState.Playing)?.name ?: _uiState.value.name
-                    _uiState.value = PlayerUiState.Loading(name = currentName)
-                    startWatchdog()
-                }
+                Timber.d("[session=$currentSession][stream=$currentStreamId] stateChanged -> state=${event.state} (READY=3, BUFFERING=2, IDLE=1, ENDED=4), isPlaying=${p.isPlaying}, mediaId=$playerMediaId")
                 when (event.state) {
+                    Player.STATE_BUFFERING -> {
+                        rebufferingCount++
+                        val currentName = (_uiState.value as? PlayerUiState.Playing)?.name ?: _uiState.value.name
+                        if (!p.isPlaying && p.playbackState != Player.STATE_READY) {
+                            _uiState.value = PlayerUiState.Loading(name = currentName)
+                            startWatchdog(currentSession, currentStreamId)
+                        }
+                    }
+                    Player.STATE_IDLE -> {
+                        if (currentStreamId != null) {
+                            startWatchdog(currentSession, currentStreamId)
+                        }
+                    }
                     Player.STATE_READY -> {
-                        stopWatchdog()
-                        // Reset recovery on successful playback
+                        Timber.d("[WATCHDOG][READY] session=$currentSession stream=$currentStreamId")
+                        stopWatchdog("STATE_READY_REACHED")
                         if (p.currentPosition > 1000) {
                             recoveryCount = 0
                         }
-                        
                         _nextEpisodeCountdown.value = null
-                        updatePlayingState(p)
+                        updatePlayingState(p, currentSession)
                     }
                     Player.STATE_ENDED -> {
+                        stopWatchdog("STATE_ENDED_REACHED")
                         viewModelScope.launch {
+                            if (!isPlaybackEventValid(currentSession, playerMediaId)) return@launch
                             val settings = settingsRepository.settingsFlow.first()
                             if (settings.autoPlayEnabled && currentType == ContentType.SERIES && nextEpisodeStreamId != null) {
                                 startNextEpisodeCountdown()
                             }
 
-                            // Smart Download Trigger
                             if (currentType == ContentType.SERIES && currentSeriesId != null && currentSeasonNumber != null && currentStreamId != null) {
                                 smartDownloadUseCase(currentSeriesId!!, currentSeasonNumber!!, currentStreamId!!)
                             }
                         }
                     }
-                    else -> {}
                 }
             }
             is PlaybackManager.Event.TracksChanged -> {
                 val currentState = _uiState.value
-                if (currentState is PlayerUiState.Playing) {
+                if (currentState is PlayerUiState.Playing && currentState.streamId == currentStreamId) {
                     _uiState.value = currentState.copy(tracks = event.tracks)
                 }
-                // Auto-select based on preferences
                 applyTrackPreferences(event.tracks)
             }
+            is PlaybackManager.Event.RenderedFirstFrame -> {
+                Timber.d("[session=$currentSession][stream=$currentStreamId] onRenderedFirstFrame")
+            }
             is PlaybackManager.Event.IsPlayingChanged -> {
-                val currentState = _uiState.value
-                if (currentState is PlayerUiState.Playing) {
-                    _uiState.value = currentState.copy(isPlaying = event.isPlaying)
+                Timber.d("[session=$currentSession][stream=$currentStreamId] isPlayingChanged -> isPlaying=${event.isPlaying}, state=${p.playbackState}, mediaId=$playerMediaId")
+                if (event.isPlaying || p.playbackState == Player.STATE_READY) {
+                    stopWatchdog("IS_PLAYING_OR_READY")
+                    updatePlayingState(p, currentSession)
+                } else {
+                    val currentState = _uiState.value
+                    if (currentState is PlayerUiState.Playing && currentState.streamId == currentStreamId) {
+                        _uiState.value = currentState.copy(isPlaying = event.isPlaying)
+                    }
                 }
             }
             is PlaybackManager.Event.PlayerError -> {
-                stopWatchdog()
+                stopWatchdog("PLAYER_ERROR")
                 val error = event.error
                 val cause = error.cause
-                val currentSession = _zappingSessionId.value
                 val message = when {
                     error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
                         "Erro de servidor (HTTP ${cause?.message ?: "Desconhecido"}). Verifique se sua lista permite conexões simultâneas."
@@ -274,7 +333,7 @@ class PlayerViewModel @Inject constructor(
                     }
                     else -> application.getString(R.string.stream_playback_error)
                 }
-                Timber.e(error, "Erro do Player: $message")
+                Timber.e(error, "[session=$currentSession][stream=$currentStreamId] Erro do Player: $message")
 
                 // Auto-Failover Logic
                 if (error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED || 
@@ -295,56 +354,83 @@ class PlayerViewModel @Inject constructor(
 
     private fun attemptDnsFailover(sessionIdAtError: Int) {
         viewModelScope.launch {
-            if (_zappingSessionId.value != sessionIdAtError) return@launch
+            if (!isPlaybackEventValid(sessionIdAtError)) {
+                Timber.w("[STALE_FAILOVER_IGNORED] session=$sessionIdAtError != activeSession=${_zappingSessionId.value}, stream=$currentStreamId")
+                return@launch
+            }
             
             val nextDns = performDnsFailoverUseCase()
             if (nextDns != null) {
+                if (!isPlaybackEventValid(sessionIdAtError)) {
+                    Timber.w("[STALE_FAILOVER_IGNORED] session=$sessionIdAtError != activeSession=${_zappingSessionId.value}, stream=$currentStreamId")
+                    return@launch
+                }
                 Timber.i("Failover [$sessionIdAtError]: Servidor alterado para $nextDns")
                 _uiState.value = PlayerUiState.Error("Conexão instável. Trocando rota...")
                 delay(1000)
-                reloadStream()
+                if (isPlaybackEventValid(sessionIdAtError)) {
+                    reloadStream(isRecovery = true)
+                }
+            } else {
+                Timber.e("Failover [$sessionIdAtError]: Sem mais rotas DNS disponíveis.")
+                stopWatchdog("NO_MORE_DNS_ROUTES")
+                _uiState.value = PlayerUiState.Error("Não foi possível conectar ao servidor. Tente novamente mais tarde.")
             }
         }
     }
 
-    private fun startWatchdog() {
-        val currentSession = _zappingSessionId.value
+    private fun startWatchdog(sessionId: Int = _zappingSessionId.value, streamId: Int? = currentStreamId) {
+        if (streamId == null) return
+        if (!isPlaybackEventValid(sessionId, streamId.toString())) {
+            Timber.w("[STALE_WATCHDOG_IGNORED] startWatchdog session=$sessionId != activeSession=${_zappingSessionId.value}, stream=$streamId, currentStream=$currentStreamId")
+            return
+        }
         val p = playbackManager.player ?: return
 
         playbackWatchdog.startMonitoring(
             player = p,
             contentType = currentType,
-            sessionId = currentSession,
+            sessionId = sessionId,
+            streamId = streamId,
             scope = viewModelScope
-        ) {
-            performRecovery(currentSession)
+        ) { reason ->
+            performRecovery(sessionId, streamId, reason)
         }
     }
 
-    private fun stopWatchdog() {
-        playbackWatchdog.stop()
+    private fun stopWatchdog(reason: String = "EXPLICIT_STOP") {
+        playbackWatchdog.stop(reason)
     }
 
-    private fun performRecovery(sessionId: Int) {
-        if (_zappingSessionId.value != sessionId) return
+    private fun performRecovery(sessionId: Int, streamId: Int? = currentStreamId, reason: String = "TIMEOUT") {
+        if (streamId == null || !isPlaybackEventValid(sessionId, streamId.toString())) {
+            Timber.w("[STALE_RECOVERY_IGNORED] session=$sessionId != activeSession=${_zappingSessionId.value}, stream=$streamId, currentStream=$currentStreamId")
+            return
+        }
         
         viewModelScope.launch {
+            if (!isPlaybackEventValid(sessionId, streamId.toString())) {
+                Timber.w("[STALE_RECOVERY_IGNORED] session=$sessionId != activeSession=${_zappingSessionId.value}, stream=$streamId, currentStream=$currentStreamId")
+                return@launch
+            }
             recoveryCount++
             val currentState = _uiState.value
-            if (currentState is PlayerUiState.Playing) {
+            if (currentState is PlayerUiState.Playing && currentState.streamId == currentStreamId) {
                 _uiState.value = currentState.copy(isReconnecting = true)
             }
+            Timber.i("[RECOVERY][START] session=$sessionId stream=$streamId reason=$reason attempt=$recoveryCount")
             when {
                 recoveryCount == 1 -> {
                     Timber.i("Watchdog: Tentativa 1 - Recarregando stream...")
-                    reloadStream()
+                    reloadStream(isRecovery = true)
                 }
                 recoveryCount == 2 -> {
                     Timber.i("Watchdog: Tentativa 2 - Failover de rota...")
                     attemptDnsFailover(sessionId)
                 }
                 else -> {
-                    Timber.e("Watchdog: Falha crítica após múltiplas tentativas.")
+                    Timber.e("Watchdog: Falha crítica após múltiplas tentativas. session=$sessionId stream=$streamId")
+                    stopWatchdog("MAX_RECOVERY_REACHED")
                     _uiState.value = PlayerUiState.Error("O stream parou de responder. Tente novamente mais tarde.")
                 }
             }
@@ -431,6 +517,9 @@ class PlayerViewModel @Inject constructor(
     private var playJob: Job? = null
 
     private var currentDisplayName: String? = null
+    private var currentStreamIcon: String? = null
+
+    val isLiveContent: Boolean get() = currentType == ContentType.LIVE
 
     fun playStream(
         streamId: Int, 
@@ -442,21 +531,25 @@ class PlayerViewModel @Inject constructor(
         qualities: Map<String, Int> = emptyMap(),
         categoryId: String? = null,
         displayName: String? = null,
-        streamIcon: String? = null
+        streamIcon: String? = null,
+        isRecovery: Boolean = false
     ) {
         currentDisplayName = displayName
-        // 1. LIMPEZA IMEDIATA (Síncrona)
-        // Paramos o player na hora para remover o frame do canal anterior
-        playbackManager.stop()
-        playbackManager.clearMediaItems()
-        
-        // Incrementar sessão para limpar a UI
-        _zappingSessionId.value += 1
+        currentStreamIcon = streamIcon
+
+        val newSession = _zappingSessionId.value + 1
+        _zappingSessionId.value = newSession
+
+        Timber.d("[ZAPPING] playStream -> session=$newSession, streamId=$streamId, name=$displayName, isRecovery=$isRecovery")
 
         // Cancel previous play job immediately
         playJob?.cancel()
-        stopWatchdog()
-        recoveryCount = 0
+        stopWatchdog("NEW_STREAM_STARTED")
+        
+        if (!isRecovery) {
+            recoveryCount = 0
+            dnsRetryCount = 0
+        }
         
         currentStreamId = streamId
         currentType = type
@@ -469,7 +562,6 @@ class PlayerViewModel @Inject constructor(
         nextEpisodeName = null
         lastQualities = qualities
         _availableQualities.value = qualities
-        dnsRetryCount = 0 // Reset retries on new stream
 
         // Update UI State instantly with metadata even before loading starts
         if (type == ContentType.LIVE) {
@@ -495,7 +587,9 @@ class PlayerViewModel @Inject constructor(
         }
 
         playJob = viewModelScope.launch {
+            val currentSession = _zappingSessionId.value
             try {
+                if (!isPlaybackEventValid(currentSession)) return@launch
                 val credentials = appSettings.value.credentials 
                     ?: settingsRepository.settingsFlow.first().credentials 
                     ?: run {
@@ -503,26 +597,24 @@ class PlayerViewModel @Inject constructor(
                         return@launch
                     }
                 
+                if (!isPlaybackEventValid(currentSession)) return@launch
                 val actualName = displayName ?: "Carregando..."
                 val actualIcon = streamIcon
 
-                Timber.d("Iniciando reprodução: $streamId ($actualName)")
+                Timber.d("[session=$currentSession][stream=$streamId] Iniciando reprodução: $streamId ($actualName)")
                 
                 // Get URL immediately (fast)
                 val url = streamRepository.getStreamUrl(credentials, streamId, type.toString(), container)
                 
-                // Optimized Login Check via UseCase
-                val sessionResult = preparePlaybackSessionUseCase()
-                if (sessionResult is PreparePlaybackSessionUseCase.Result.Error) {
-                    withContext(Dispatchers.Main) {
-                        _uiState.value = PlayerUiState.Error(sessionResult.message)
-                    }
-                    return@launch
-                }
-
                 ensurePlayer()
                 
                 withContext(Dispatchers.Main) {
+                    ensureActive()
+                    if (!isPlaybackEventValid(currentSession)) {
+                        Timber.w("[STALE_JOB_ABORTED] session=$currentSession != activeSession=${_zappingSessionId.value}. Abortando preparo de mídia para stream $streamId.")
+                        return@withContext
+                    }
+
                     val metadataBuilder = MediaMetadata.Builder()
                         .setTitle(actualName)
                         .setDisplayTitle(actualName)
@@ -550,33 +642,51 @@ class PlayerViewModel @Inject constructor(
                                 .build()
                         )
                         .build()
-                    
+
                     playbackManager.setMediaItem(mediaItem)
                     playbackManager.prepare()
                     playbackManager.play()
+
+                    startWatchdog(currentSession, streamId)
+
+                    val p = playbackManager.player
+                    if (p != null && (p.isPlaying || p.playbackState == Player.STATE_READY)) {
+                        updatePlayingState(p, currentSession)
+                    }
+                }
+
+                if (!isPlaybackEventValid(currentSession)) return@launch
+
+                launch(Dispatchers.IO) {
+                    if (isPlaybackEventValid(currentSession)) {
+                        preparePlaybackSessionUseCase()
+                    }
                 }
 
                 // Background tasks after starting playback
                 launch(Dispatchers.IO) {
-                    if (type == ContentType.LIVE) {
+                    if (type == ContentType.LIVE && isPlaybackEventValid(currentSession)) {
                         val streams = catalogRepository.getStreamsByIds(listOf(streamId))
+                        if (!isPlaybackEventValid(currentSession)) return@launch
                         val stream = streams.firstOrNull { it.streamType == type.toString().uppercase() }
                         val isFav = stream?.isFavorite ?: false
                         val dbName = stream?.name ?: actualName
                         val dbIcon = stream?.logo ?: actualIcon
 
                         withContext(Dispatchers.Main) {
-                            val currentState = _uiState.value
-                            if (currentState is PlayerUiState.Playing && currentState.streamId == streamId) {
-                                _uiState.value = currentState.copy(
-                                    isFavorite = isFav,
-                                    name = dbName,
-                                    streamIcon = dbIcon
-                                )
+                            if (isPlaybackEventValid(currentSession)) {
+                                val currentState = _uiState.value
+                                if (currentState is PlayerUiState.Playing && currentState.streamId == streamId) {
+                                    _uiState.value = currentState.copy(
+                                        isFavorite = isFav,
+                                        name = dbName,
+                                        streamIcon = dbIcon
+                                    )
+                                }
                             }
                         }
 
-                        if (stream != null) {
+                        if (stream != null && isPlaybackEventValid(currentSession)) {
                             addToRecentChannels(XtreamStream(
                                 streamId = stream.id,
                                 name = stream.name,
@@ -586,33 +696,39 @@ class PlayerViewModel @Inject constructor(
                                 streamType = stream.streamType
                             ))
                         }
-                        loadEpg(streamId)
-                        loadQuickSwitchStreams(categoryId)
+                        if (isPlaybackEventValid(currentSession)) {
+                            loadEpg(streamId)
+                            if (_quickSwitchStreams.value.isEmpty() || lastLoadedCategoryId != categoryId) {
+                                lastLoadedCategoryId = categoryId
+                                loadQuickSwitchStreams(categoryId)
+                            }
+                        }
                     }
                 }
                 
-                if (type == ContentType.SERIES && seriesId != null && seasonNumber != null) {
+                if (type == ContentType.SERIES && seriesId != null && seasonNumber != null && isPlaybackEventValid(currentSession)) {
                     checkNextEpisode(seriesId, seasonNumber, streamId)
                 }
 
-                startPositionUpdates()
+                if (isPlaybackEventValid(currentSession)) {
+                    startPositionUpdates()
+                }
             } catch (e: CancellationException) {
                 // Ignore cancellation as it means a new stream is being played
             } catch (e: Exception) {
-                Timber.e(e, "Erro ao iniciar stream")
-                
-                if (type == ContentType.LIVE) {
-                    _uiState.value = PlayerUiState.Error("Conexão falhou. Tentando reconectar...")
-                    delay(2000)
-                    playStream(streamId, type, container, epgId, seriesId, seasonNumber, qualities, categoryId)
-                } else {
-                    _uiState.value = PlayerUiState.Error("Erro ao reproduzir: ${e.localizedMessage}")
+                if (isPlaybackEventValid(currentSession)) {
+                    Timber.e(e, "Erro ao iniciar stream")
+                    if (type == ContentType.LIVE) {
+                        _uiState.value = PlayerUiState.Error("Conexão falhou. Tentando reconectar...")
+                    } else {
+                        _uiState.value = PlayerUiState.Error("Erro ao reproduzir: ${e.localizedMessage}")
+                    }
                 }
             }
         }
     }
 
-    fun reloadStream() {
+    fun reloadStream(isRecovery: Boolean = false) {
         val streamId = currentStreamId ?: return
         playStream(
             streamId = streamId,
@@ -622,7 +738,10 @@ class PlayerViewModel @Inject constructor(
             seriesId = currentSeriesId,
             seasonNumber = currentSeasonNumber,
             qualities = lastQualities,
-            categoryId = currentCategoryId
+            categoryId = currentCategoryId,
+            displayName = currentDisplayName,
+            streamIcon = currentStreamIcon,
+            isRecovery = isRecovery
         )
     }
 
@@ -684,20 +803,24 @@ class PlayerViewModel @Inject constructor(
         positionUpdateJob = viewModelScope.launch {
             while (isActive) {
                 val p = playbackManager.player ?: break
-                if (p.isPlaying) {
-                    val currentPos = p.currentPosition
-                    val duration = p.duration
-                    if (currentType != ContentType.LIVE && currentStreamId != null && duration > 0) {
-                        syncWatchProgressUseCase(
-                            streamId = currentStreamId!!,
-                            type = currentType.toString(),
-                            position = currentPos,
-                            duration = duration,
-                            seriesId = currentSeriesId
-                        )
-                    }
+                if (p.isPlaying || p.playbackState == Player.STATE_READY) {
                     val currentState = _uiState.value
-                    if (currentState is PlayerUiState.Playing) {
+                    if (currentState !is PlayerUiState.Playing) {
+                        Timber.i("[PLAYBACK] Player ativo/pronto mas UI estava em Loading. Auto-corrigindo estado da UI para Playing.")
+                        updatePlayingState(p)
+                    } else {
+                        val currentPos = p.currentPosition
+                        val duration = p.duration
+                        if (currentType != ContentType.LIVE && currentStreamId != null && duration > 0) {
+                            syncWatchProgressUseCase(
+                                streamId = currentStreamId!!,
+                                type = currentType.toString(),
+                                position = currentPos,
+                                duration = duration,
+                                seriesId = currentSeriesId
+                            )
+                        }
+                        
                         val bandwidth = bandwidthMeter.bitrateEstimate / 1_000_000.0
                         val bufferedPos = p.bufferedPosition
                         val delay = if (p.isCurrentMediaItemLive) (p.duration - currentPos) / 1000 else (bufferedPos - currentPos) / 1000
@@ -787,16 +910,31 @@ class PlayerViewModel @Inject constructor(
 
     fun playNextChannel() {
         val streams = _quickSwitchStreams.value
-        val currentId = currentStreamId ?: return
-        if (streams.isEmpty()) return
-        
-        val currentIndex = streams.indexOfFirst { it.streamId == currentId }
+        val currentId = currentStreamId
+        val currentIndex = if (currentId != null) streams.indexOfFirst { it.streamId == currentId } else -1
+        Timber.d("[ZAPPING_TRACE] NEXT requested -> streams.size=${streams.size}, currentStreamId=$currentId, currentIndex=$currentIndex, session=${_zappingSessionId.value}")
+        if (streams.isEmpty()) {
+            Timber.w("[ZAPPING] Lista de zapping vazia. Carregando canais em background...")
+            viewModelScope.launch {
+                var loaded = getQuickSwitchUseCase.getStreams(currentCategoryId)
+                if (loaded.isEmpty() && currentCategoryId != null) {
+                    loaded = getQuickSwitchUseCase.getStreams(null)
+                }
+                if (loaded.isNotEmpty()) {
+                    _quickSwitchStreams.value = loaded
+                    playNextChannel()
+                } else {
+                    Timber.e("[ZAPPING] Nenhuma stream encontrada para zapping.")
+                }
+            }
+            return
+        }
         val nextIndex = if (currentIndex == -1) 0 else (currentIndex + 1) % streams.size
         val target = streams[nextIndex]
         
-        Timber.i("Zapping: Próximo Canal (${target.name})")
+        Timber.i("[ZAPPING] NEXT -> currentId=$currentId (index $currentIndex) -> targetId=${target.streamId} '${target.name}' (index $nextIndex of ${streams.size}, Session: ${_zappingSessionId.value + 1})")
+        showZappingBanner(target)
         
-        // Instant play call with displayName for immediate UI update
         playStream(
             streamId = target.streamId ?: 0,
             type = ContentType.LIVE,
@@ -810,16 +948,31 @@ class PlayerViewModel @Inject constructor(
 
     fun playPreviousChannel() {
         val streams = _quickSwitchStreams.value
-        val currentId = currentStreamId ?: return
-        if (streams.isEmpty()) return
-        
-        val currentIndex = streams.indexOfFirst { it.streamId == currentId }
+        val currentId = currentStreamId
+        val currentIndex = if (currentId != null) streams.indexOfFirst { it.streamId == currentId } else -1
+        Timber.d("[ZAPPING_TRACE] PREVIOUS requested -> streams.size=${streams.size}, currentStreamId=$currentId, currentIndex=$currentIndex, session=${_zappingSessionId.value}")
+        if (streams.isEmpty()) {
+            Timber.w("[ZAPPING] Lista de zapping vazia. Carregando canais em background...")
+            viewModelScope.launch {
+                var loaded = getQuickSwitchUseCase.getStreams(currentCategoryId)
+                if (loaded.isEmpty() && currentCategoryId != null) {
+                    loaded = getQuickSwitchUseCase.getStreams(null)
+                }
+                if (loaded.isNotEmpty()) {
+                    _quickSwitchStreams.value = loaded
+                    playPreviousChannel()
+                } else {
+                    Timber.e("[ZAPPING] Nenhuma stream encontrada para zapping.")
+                }
+            }
+            return
+        }
         val prevIndex = if (currentIndex <= 0) streams.size - 1 else currentIndex - 1
         val target = streams[prevIndex]
         
-        Timber.i("Zapping: Canal Anterior (${target.name})")
+        Timber.i("[ZAPPING] PREVIOUS -> currentId=$currentId (index $currentIndex) -> targetId=${target.streamId} '${target.name}' (index $prevIndex of ${streams.size}, Session: ${_zappingSessionId.value + 1})")
+        showZappingBanner(target)
         
-        // Instant play call with displayName for immediate UI update
         playStream(
             streamId = target.streamId ?: 0,
             type = ContentType.LIVE,
@@ -903,8 +1056,9 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun loadEpg(streamId: Int) {
+        epgJob?.cancel()
         val currentSession = _zappingSessionId.value
-        viewModelScope.launch {
+        epgJob = viewModelScope.launch {
             try {
                 val result = getPlayerEpgUseCase(streamId)
                 if (_zappingSessionId.value != currentSession) return@launch
@@ -916,6 +1070,8 @@ class PlayerViewModel @Inject constructor(
                 if (currentState is PlayerUiState.Playing && currentState.streamId == streamId) {
                     _uiState.value = currentState.copy(epgListings = result.allListings)
                 }
+            } catch (e: CancellationException) {
+                // Expected
             } catch (e: Exception) {
                 if (_zappingSessionId.value != currentSession) return@launch
                 Timber.e(e, "Erro ao carregar EPG")
@@ -1025,10 +1181,16 @@ class PlayerViewModel @Inject constructor(
         playbackManager.clearTrackOverrides()
     }
 
+    private var zappingEpgJob: Job? = null
+
     private fun loadQuickSwitchStreams(categoryId: String? = null) {
-        viewModelScope.launch {
+        zappingEpgJob?.cancel()
+        zappingEpgJob = viewModelScope.launch {
             try {
-                val streams = getQuickSwitchUseCase.getStreams(categoryId)
+                var streams = getQuickSwitchUseCase.getStreams(categoryId)
+                if (streams.isEmpty() && categoryId != null) {
+                    streams = getQuickSwitchUseCase.getStreams(null)
+                }
                 _quickSwitchStreams.value = streams
                 
                 getQuickSwitchUseCase.loadZappingEpg(streams).collect { (streamId, programme) ->
@@ -1037,6 +1199,8 @@ class PlayerViewModel @Inject constructor(
                         if (next.size > 50) next.toList().takeLast(50).toMap() else next
                     }
                 }
+            } catch (e: CancellationException) {
+                // Expected when new zapping occurs
             } catch (e: Exception) {
                 Timber.e(e, "Erro ao carregar streams de zapping")
             }

@@ -1,11 +1,14 @@
 package com.meuscanais.di
 
-import android.app.Application
 import android.content.Context
+import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.SimpleCache
@@ -78,13 +81,57 @@ object PlayerModule {
             .setUpstreamDataSourceFactory(httpDataSourceFactory)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
+        // Bypasses CacheDataSource for Live IPTV streams to prevent stale packet reads and A/V desync
+        val dataSourceFactory = DataSource.Factory {
+            val httpDataSource = httpDataSourceFactory.createDataSource()
+            val cacheDataSource = cacheDataSourceFactory.createDataSource()
+
+            object : DataSource by httpDataSource {
+                private var activeDataSource: DataSource = httpDataSource
+
+                override fun open(dataSpec: DataSpec): Long {
+                    val uriPath = dataSpec.uri.path?.lowercase() ?: ""
+                    val uriString = dataSpec.uri.toString().lowercase()
+
+                    val isLiveStream = uriPath.contains("/live/") || uriString.contains("/live/") || uriPath.endsWith(".ts")
+                    activeDataSource = if (isLiveStream) {
+                        httpDataSource
+                    } else {
+                        cacheDataSource
+                    }
+                    return activeDataSource.open(dataSpec)
+                }
+
+                override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                    return activeDataSource.read(buffer, offset, length)
+                }
+
+                override fun close() {
+                    activeDataSource.close()
+                }
+
+                override fun getUri(): Uri? {
+                    return activeDataSource.uri
+                }
+
+                override fun getResponseHeaders(): Map<String, List<String>> {
+                    return activeDataSource.responseHeaders
+                }
+
+                override fun addTransferListener(transferListener: TransferListener) {
+                    httpDataSource.addTransferListener(transferListener)
+                    cacheDataSource.addTransferListener(transferListener)
+                }
+            }
+        }
+
         // Optimize TS extractors for IPTV
         val extractorsFactory = DefaultExtractorsFactory()
             .setTsExtractorFlags(DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES)
-            .setTsExtractorTimestampSearchBytes(TsExtractor.DEFAULT_TIMESTAMP_SEARCH_BYTES * 2)
+            .setTsExtractorTimestampSearchBytes(TsExtractor.DEFAULT_TIMESTAMP_SEARCH_BYTES)
 
         val mediaSourceFactory = DefaultMediaSourceFactory(context, extractorsFactory)
-            .setDataSourceFactory(cacheDataSourceFactory)
+            .setDataSourceFactory(dataSourceFactory)
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
@@ -94,7 +141,7 @@ object PlayerModule {
                 2000   // bufferForPlaybackAfterRebufferMs
             )
             .setPrioritizeTimeOverSizeThresholds(true)
-            .setBackBuffer(10000, true)
+            .setBackBuffer(0, false)
             .build()
 
         val renderersFactory = DefaultRenderersFactory(context)
@@ -114,3 +161,4 @@ object PlayerModule {
             .build()
     }
 }
+

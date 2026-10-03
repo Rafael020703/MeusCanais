@@ -54,21 +54,58 @@ fun LiveChannelsScreen(
     
     val sidebarFocusRequester = remember { FocusRequester() }
     val gridFocusRequester = remember { FocusRequester() }
+    var wasPinDialogActive by remember { mutableStateOf(false) }
+
+    val ids = remember(settings.hideBlockedCategories, blockedIds) {
+        if (settings.hideBlockedCategories) blockedIds else emptySet()
+    }
+
+    var selectedCategoryId by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(contentRows) {
+        val loadedCatId = contentRows.firstOrNull()?.catId
+        if (loadedCatId != null && selectedCategoryId != loadedCatId) {
+            selectedCategoryId = loadedCatId
+        }
+    }
+
+    var isInitialLoad by remember { mutableStateOf(true) }
 
     LaunchedEffect(isLoading) {
-        if (!isLoading) {
-            delay(300)
-            if (contentRows.isNotEmpty()) {
-                try { gridFocusRequester.requestFocus() } catch (_: Exception) {}
-            } else {
-                try { sidebarFocusRequester.requestFocus() } catch (_: Exception) {}
-            }
+        if (!isLoading && isInitialLoad) {
+            isInitialLoad = false
+            delay(200)
+            try { sidebarFocusRequester.requestFocus() } catch (_: Exception) {}
+        }
+    }
+
+    LaunchedEffect(pendingCategoryToUnlock) {
+        if (pendingCategoryToUnlock != null) {
+            wasPinDialogActive = true
+        } else if (wasPinDialogActive) {
+            wasPinDialogActive = false
+            delay(150)
+            try {
+                sidebarFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        }
+    }
+
+    val handleCategorySelect: (String) -> Unit = { catId ->
+        if (blockedIds.contains(catId) && !settings.hideBlockedCategories) {
+            pendingCategoryToUnlock = catId
+        } else {
+            selectedCategoryId = catId
+            viewModel.saveLastCategory("live", catId)
+            categoryViewModel.loadContent("live", catId, ids)
         }
     }
 
     PortalBackground {
         Column(modifier = Modifier.fillMaxSize()) {
-            val activeCat = categories.find { cat -> contentRows.any { it.catId == cat.categoryId } }
+            val activeCat = categories.find { cat -> 
+                cat.categoryId == selectedCategoryId || contentRows.any { it.catId == cat.categoryId } 
+            }
             AppHeader(
                 title = stringResource(R.string.live_tv_nav_title),
                 subtitle = activeCat?.categoryName ?: stringResource(R.string.all_categories_label),
@@ -83,13 +120,23 @@ fun LiveChannelsScreen(
                 if (!isCompact) {
                     AppSidebar(
                         items = categories,
-                        selectedItemPredicate = { cat -> contentRows.any { it.catId == cat.categoryId } },
+                        selectedItemPredicate = { cat -> 
+                            cat.categoryId == selectedCategoryId || (selectedCategoryId == null && contentRows.any { it.catId == cat.categoryId })
+                        },
                         itemLabel = { it.categoryName ?: "" },
                         onItemClick = { cat ->
-                            if (blockedIds.contains(cat.categoryId) && !settings.hideBlockedCategories) {
-                                pendingCategoryToUnlock = cat.categoryId
-                            } else {
-                                onCategoryClick("live", cat.categoryId)
+                            cat.categoryId?.let { catId ->
+                                handleCategorySelect(catId)
+                                if (!blockedIds.contains(catId) || settings.hideBlockedCategories) {
+                                    try { gridFocusRequester.requestFocus() } catch (_: Exception) {}
+                                }
+                            }
+                        },
+                        onItemFocus = { cat ->
+                            cat.categoryId?.let { catId ->
+                                if (catId != selectedCategoryId) {
+                                    handleCategorySelect(catId)
+                                }
                             }
                         },
                         focusRequester = sidebarFocusRequester,
@@ -133,8 +180,11 @@ fun LiveChannelsScreen(
             onDismiss = { pendingCategoryToUnlock = null },
             onConfirm = { pin ->
                 if (pin == settings.appPin) {
-                    viewModel.unlockCategory(pendingCategoryToUnlock!!)
-                    onCategoryClick("live", pendingCategoryToUnlock)
+                    val unlockedCat = pendingCategoryToUnlock!!
+                    viewModel.unlockCategory(unlockedCat)
+                    selectedCategoryId = unlockedCat
+                    viewModel.saveLastCategory("live", unlockedCat)
+                    categoryViewModel.loadContent("live", unlockedCat, ids)
                     pendingCategoryToUnlock = null
                 }
             }

@@ -8,13 +8,14 @@ import javax.inject.Singleton
 class StreamRepository @Inject constructor() {
 
     fun getStreamUrl(credentials: XtreamCredentials, streamId: Int, type: String, container: String? = "ts"): String {
-        val action = when (type) {
+        val normalizedType = type.lowercase()
+        val action = when (normalizedType) {
             "live" -> "live"
             "movie", "vod" -> "movie"
             "series" -> "series"
             else -> "live"
         }
-        val ext = when (type) {
+        val ext = when (normalizedType) {
             "live" -> ".ts"
             else -> if (container.isNullOrBlank()) ".mp4" else if (container.startsWith(".")) container else ".$container"
         }

@@ -37,6 +37,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
 import com.meuscanais.MainActivity
 import com.meuscanais.R
+import timber.log.Timber
 import com.meuscanais.core.ui.components.buttons.*
 import com.meuscanais.core.ui.components.common.DigitalClock
 import com.meuscanais.core.ui.components.states.BrandedLoadingScreen
@@ -80,6 +81,7 @@ fun PlayerScreen(
     val sleepTimer by viewModel.sleepTimer.collectAsStateWithLifecycle()
     val subtitleSize by viewModel.subtitleSize.collectAsStateWithLifecycle()
     val zappingSessionId by viewModel.zappingSessionId.collectAsStateWithLifecycle()
+    val zappingChannel by viewModel.zappingChannel.collectAsStateWithLifecycle()
     
     var isControlsVisible by remember { mutableStateOf(true) }
     var lastInteraction by remember { mutableStateOf(0L) }
@@ -87,7 +89,6 @@ fun PlayerScreen(
     var showSettings by remember { mutableStateOf(false) }
     var showQualityMenu by remember { mutableStateOf(false) }
     var isLocked by remember { mutableStateOf(false) }
-    var zappingChannel by remember { mutableStateOf<XtreamStream?>(null) }
     var digitBuffer by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
 
@@ -101,7 +102,7 @@ fun PlayerScreen(
         overlayTimerJob?.cancel()
         overlayTimerJob = null
         isControlsVisible = false
-        zappingChannel = null
+        viewModel.dismissZappingBanner()
     }
 
     val showOverlayWith5sTimer: () -> Unit = {
@@ -110,7 +111,6 @@ fun PlayerScreen(
         overlayTimerJob = coroutineScope.launch {
             delay(5000L)
             isControlsVisible = false
-            zappingChannel = null
         }
     }
 
@@ -119,25 +119,12 @@ fun PlayerScreen(
     }
 
     val onZapping = { isNext: Boolean ->
-        val streams = quickSwitchStreams
-        val currentState = uiState as? PlayerUiState.Playing
-        if (streams.isNotEmpty() && currentState != null && currentState.isLive) {
-            val currentIndex = streams.indexOfFirst { it.streamId == currentState.streamId }
-            val nextIndex = if (isNext) (currentIndex + 1) % streams.size else if (currentIndex <= 0) streams.size - 1 else currentIndex - 1
-            val target = streams[nextIndex]
-            zappingChannel = target
-            viewModel.playStream(
-                streamId = target.streamId ?: 0, 
-                type = ContentType.LIVE, 
-                container = null, 
-                epgId = target.epgChannelId,
-                qualities = emptyMap(),
-                categoryId = categoryId,
-                displayName = target.name,
-                streamIcon = target.streamIcon
-            )
-            showOverlayWith5sTimer()
+        if (isNext) {
+            viewModel.playNextChannel()
+        } else {
+            viewModel.playPreviousChannel()
         }
+        showOverlayWith5sTimer()
     }
 
     LaunchedEffect(digitBuffer) {
@@ -223,6 +210,7 @@ fun PlayerScreen(
                 )
             },
             onSetSubtitleSize = { viewModel.setSubtitleSize(it) },
+            onDismissZapping = { viewModel.dismissZappingBanner() },
             onZapping = onZapping,
             onSetSleepTimer = { viewModel.setSleepTimer(it) },
             recentChannels = recentChannels,
@@ -248,7 +236,8 @@ fun PlayerScreen(
             isSplitView = isSplitView,
             setSplitView = { isSplitView = it },
             playerEngine = appSettings.playerEngine,
-            zappingChannel = zappingChannel
+            zappingChannel = zappingChannel,
+            isLiveContent = viewModel.isLiveContent
         )
     }
 }
@@ -278,6 +267,7 @@ fun PlayerContent(
     onSetSpeed: (Float) -> Unit,
     onSwitchStream: (XtreamStream) -> Unit,
     onZapping: (Boolean) -> Unit,
+    onDismissZapping: () -> Unit,
     onSetSleepTimer: (Int?) -> Unit,
     onSetSubtitleSize: (Float) -> Unit,
     recentChannels: List<XtreamStream>,
@@ -303,7 +293,8 @@ fun PlayerContent(
     isSplitView: Boolean,
     setSplitView: (Boolean) -> Unit,
     playerEngine: String,
-    zappingChannel: XtreamStream?
+    zappingChannel: XtreamStream?,
+    isLiveContent: Boolean = true
 ) {
     val context = LocalContext.current
     val tokens = AppDesignSystem
@@ -326,82 +317,77 @@ fun PlayerContent(
             .focusRequester(focusRequester)
             .onKeyEvent { keyEvent ->
                 updateInteraction()
+                val isLive = isLiveContent || (uiState as? PlayerUiState.Playing)?.isLive == true
+                val keyCode = keyEvent.nativeKeyEvent.keyCode
+                if (keyEvent.key in listOf(Key.DirectionUp, Key.DirectionDown) || keyCode in listOf(166, 167, 87, 88, 92, 93)) {
+                    Timber.d("[DPAD_DEBUG] type=${keyEvent.type} key=${keyEvent.key} keyCode=$keyCode isLive=$isLive showSettings=$showSettings showQuality=$showQualityMenu isSplitView=$isSplitView zappingChannel=${zappingChannel?.name}")
+                }
                 if (keyEvent.type == KeyEventType.KeyUp) {
-                    val isLive = (uiState as? PlayerUiState.Playing)?.isLive ?: false
-                    when (keyEvent.key) {
-                        Key.DirectionCenter, Key.Enter, Key.Spacebar -> { 
+                    when {
+                        // Modal dialogues absorb navigation
+                        showSettings || showQualityMenu || isSplitView -> {
+                            if (keyEvent.key == Key.Back) {
+                                when {
+                                    showSettings -> setShowSettings(false)
+                                    showQualityMenu -> setShowQualityMenu(false)
+                                    isSplitView -> setSplitView(false)
+                                }
+                                true
+                            } else false
+                        }
+
+                        // Live Zapping Navigation (D-Pad Up/Down, Channel +/- , Page +/-, Media Next/Prev)
+                        isLive && (keyEvent.key == Key.DirectionDown || keyCode in listOf(166, 87, 92)) -> {
+                            updateInteraction()
+                            onZapping(true)
+                            true
+                        }
+
+                        isLive && (keyEvent.key == Key.DirectionUp || keyCode in listOf(167, 88, 93)) -> {
+                            updateInteraction()
+                            onZapping(false)
+                            true
+                        }
+
+                        // Controls Overlay Toggle
+                        keyEvent.key in listOf(Key.DirectionCenter, Key.Enter, Key.Spacebar) -> {
                             onToggleControls()
-                            true 
+                            true
                         }
-                        Key.DirectionLeft -> { 
-                            if (!isControlsVisible && !isLive && !isSplitView) { onSeekBack(); onToggleControls(); true } else false
-                        }
-                        Key.DirectionRight -> { 
-                            if (!isControlsVisible && !isLive && !isSplitView) { onSeekForward(); onToggleControls(); true } else false
-                        }
-                        Key.DirectionUp -> {
-                            if (!isControlsVisible && isLive && !isSplitView) {
-                                updateInteraction()
-                                onZapping(false)
-                                true
-                            } else false
-                        }
-                        Key.DirectionDown -> {
-                            if (!isControlsVisible && isLive && !isSplitView) {
-                                updateInteraction()
-                                onZapping(true)
-                                true
-                            } else false
-                        }
-                        Key.Back -> {
-                            val handled = when {
-                                showSettings -> { setShowSettings(false); true }
-                                showQualityMenu -> { setShowQualityMenu(false); true }
-                                isSplitView -> { setSplitView(false); true }
-                                zappingChannel != null -> { updateInteraction(); true }
-                                isControlsVisible -> { onToggleControls(); true }
+
+                        // VOD Seek Controls
+                        !isLive && !isControlsVisible -> {
+                            when (keyEvent.key) {
+                                Key.DirectionLeft -> { onSeekBack(); onToggleControls(); true }
+                                Key.DirectionRight -> { onSeekForward(); onToggleControls(); true }
                                 else -> false
                             }
-                            
-                            if (handled) {
-                                updateInteraction()
-                                true
-                            } else {
-                                onBack()
-                                true
+                        }
+
+                        // Back Button handling
+                        keyEvent.key == Key.Back -> {
+                            when {
+                                zappingChannel != null -> { onDismissZapping(); updateInteraction(); true }
+                                isControlsVisible -> { onToggleControls(); true }
+                                else -> { onBack(); true }
                             }
                         }
-                        else -> {
-                            // Digit Entry
-                            val char = keyEvent.nativeKeyEvent.displayLabel.toString()
-                            if (char.toIntOrNull() != null) {
-                                onDigitEntry(char)
-                                true
-                            } else {
-                                when (keyEvent.nativeKeyEvent.keyCode) {
-                                    183 -> { onToggleFavorite(); true } // Red
-                                    184 -> { onToggleResizeMode(); true } // Green
-                                    185 -> { setShowSettings(true); true } // Yellow
-                                    186 -> { setShowQualityMenu(true); true } // Blue
-                                    172 -> { setSplitView(true); true } // Guide
-                                    166, 87 -> { // KEYCODE_CHANNEL_UP or KEYCODE_MEDIA_NEXT
-                                        if (isLive) {
-                                            updateInteraction()
-                                            onZapping(true)
-                                            true
-                                        } else false
-                                    }
-                                    167, 88 -> { // KEYCODE_CHANNEL_DOWN or KEYCODE_MEDIA_PREVIOUS
-                                        if (isLive) {
-                                            updateInteraction()
-                                            onZapping(false)
-                                            true
-                                        } else false
-                                    }
-                                    else -> false
-                                }
-                            }
+
+                        // Numpad Digit Entry (Keycodes 7 to 16 mapped to 0-9)
+                        keyCode in 7..16 -> {
+                            val digit = (keyCode - 7).toString()
+                            onDigitEntry(digit)
+                            true
                         }
+
+                        // Special Remote Color Keys
+                        keyCode == 183 -> { onToggleFavorite(); true } // Red
+                        keyCode == 184 -> { onToggleResizeMode(); true } // Green
+                        keyCode == 185 -> { setShowSettings(true); true } // Yellow
+                        keyCode == 186 -> { setShowQualityMenu(true); true } // Blue
+                        keyCode == 172 -> { setSplitView(true); true } // Guide
+
+                        else -> false
                     }
                 } else false
             }

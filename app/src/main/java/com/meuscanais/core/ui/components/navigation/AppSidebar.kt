@@ -19,6 +19,7 @@ fun <T> AppSidebar(
     selectedItemPredicate: (T) -> Boolean,
     itemLabel: @Composable (T) -> String,
     onItemClick: (T) -> Unit,
+    onItemFocus: (T) -> Unit = {},
     modifier: Modifier = Modifier,
     focusRequester: FocusRequester = remember { FocusRequester() },
     nextFocusRequester: FocusRequester? = null
@@ -53,7 +54,8 @@ fun <T> AppSidebar(
                             Modifier.focusRequester(focusRequester)
                         } else Modifier
                     ),
-                    onClick = { onItemClick(item) }
+                    onClick = { onItemClick(item) },
+                    onFocus = { onItemFocus(item) }
                 )
             }
         }

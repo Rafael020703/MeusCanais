@@ -41,6 +41,7 @@ class PlaybackManager @Inject constructor(
         data class TracksChanged(val tracks: Tracks) : Event()
         data class IsPlayingChanged(val isPlaying: Boolean) : Event()
         data class PlayerError(val error: PlaybackException) : Event()
+        data object RenderedFirstFrame : Event()
         data object NextChannelRequested : Event()
         data object PreviousChannelRequested : Event()
     }
@@ -57,6 +58,11 @@ class PlaybackManager @Inject constructor(
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
     
+    companion object {
+        private var instanceCounter = 0
+    }
+    val instanceId = ++instanceCounter
+
     private var _player: Player? = null
     val player: Player? get() = _player
 
@@ -80,18 +86,32 @@ class PlaybackManager @Inject constructor(
 
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
+            val mediaId = _player?.currentMediaItem?.mediaId
+            Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] onPlaybackStateChanged -> state=$playbackState, mediaId=$mediaId")
             _events.tryEmit(Event.PlaybackStateChanged(playbackState))
         }
 
         override fun onTracksChanged(tracks: Tracks) {
+            val mediaId = _player?.currentMediaItem?.mediaId
+            Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] onTracksChanged -> mediaId=$mediaId")
             _events.tryEmit(Event.TracksChanged(tracks))
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            val mediaId = _player?.currentMediaItem?.mediaId
+            Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] onIsPlayingChanged -> isPlaying=$isPlaying, mediaId=$mediaId")
             _events.tryEmit(Event.IsPlayingChanged(isPlaying))
         }
 
+        override fun onRenderedFirstFrame() {
+            val mediaId = _player?.currentMediaItem?.mediaId
+            Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] onRenderedFirstFrame -> mediaId=$mediaId")
+            _events.tryEmit(Event.RenderedFirstFrame)
+        }
+
         override fun onPlayerError(error: PlaybackException) {
+            val mediaId = _player?.currentMediaItem?.mediaId
+            Timber.e(error, "[PLAYBACK_MANAGER][instance=$instanceId] onPlayerError -> mediaId=$mediaId, errorCode=${error.errorCode}")
             _events.tryEmit(Event.PlayerError(error))
         }
     }
@@ -156,26 +176,32 @@ class PlaybackManager @Inject constructor(
     // --- Technical Transport Commands ---
 
     fun play() {
+        Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] play -> mediaId=${_player?.currentMediaItem?.mediaId}")
         _player?.play()
     }
 
     fun pause() {
+        Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] pause -> mediaId=${_player?.currentMediaItem?.mediaId}")
         _player?.pause()
     }
 
     fun stop() {
+        Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] stop -> mediaId=${_player?.currentMediaItem?.mediaId}")
         _player?.stop()
     }
 
     fun clearMediaItems() {
+        Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] clearMediaItems -> mediaId=${_player?.currentMediaItem?.mediaId}")
         _player?.clearMediaItems()
     }
 
     fun setMediaItem(item: MediaItem) {
+        Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] setMediaItem -> mediaId=${item.mediaId}")
         _player?.setMediaItem(item)
     }
 
     fun prepare() {
+        Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] prepare -> mediaId=${_player?.currentMediaItem?.mediaId}")
         _player?.prepare()
     }
 

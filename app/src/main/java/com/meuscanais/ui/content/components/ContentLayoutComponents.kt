@@ -30,7 +30,8 @@ fun CategoryListItem(
     name: String, 
     isSelected: Boolean, 
     modifier: Modifier = Modifier, 
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onFocus: () -> Unit = {}
 ) {
     val tokens = AppDesignSystem
     val responsive = tokens.responsive
@@ -55,7 +56,12 @@ fun CategoryListItem(
             .padding(horizontal = responsive.dp(tokens.spacing.small), vertical = responsive.dp(tokens.spacing.tiny))
             .adaptiveFocus(
                 shape = tokens.shapes.medium,
-                onFocus = { isFocused = it }
+                onFocus = { focused ->
+                    isFocused = focused
+                    if (focused) {
+                        onFocus()
+                    }
+                }
             )
             .clickable { onClick() }
             .background(backgroundColor, tokens.shapes.medium)

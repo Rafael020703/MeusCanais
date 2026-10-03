@@ -73,8 +73,11 @@ class CategoryViewModel @Inject constructor(
         }
     }
 
+    private var loadJob: Job? = null
+
     fun loadContent(type: String, categoryId: String? = null, blockedIds: Set<String> = emptySet(), favorites: List<IptvItem> = emptyList()) {
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             val credentials = settingsRepository.settingsFlow.first().credentials ?: return@launch
             _isLoading.value = true
             try {
