@@ -1,0 +1,236 @@
+﻿package rsv.squitv.core.domain.interactor
+
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import androidx.core.content.ContextCompat
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.Tracks
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
+import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
+import rsv.squitv.data.service.MediaPlaybackService
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import timber.log.Timber
+import javax.inject.Inject
+
+/**
+ * PlaybackManager responsible for the technical lifecycle of the MediaController.
+ * It handles connecting to the MediaPlaybackService and releasing the controller.
+ */
+@UnstableApi
+class PlaybackManager @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
+    sealed class Event {
+        data class PlaybackStateChanged(val state: Int) : Event()
+        data class TracksChanged(val tracks: Tracks) : Event()
+        data class IsPlayingChanged(val isPlaying: Boolean) : Event()
+        data class PlayerError(val error: PlaybackException) : Event()
+        data object RenderedFirstFrame : Event()
+        data object NextChannelRequested : Event()
+        data object PreviousChannelRequested : Event()
+    }
+
+    private val _events = MutableSharedFlow<Event>(
+        replay = 0,
+        extraBufferCapacity = 16,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val events = _events.asSharedFlow()
+
+    private val _playerState = MutableStateFlow<Player?>(null)
+    val playerState: StateFlow<Player?> = _playerState.asStateFlow()
+
+    private var controllerFuture: ListenableFuture<MediaController>? = null
+    
+    companion object {
+        private var instanceCounter = 0
+    }
+    val instanceId = ++instanceCounter
+
+    private var _player: Player? = null
+    val player: Player? get() = _player
+
+    private val controllerListener = object : MediaController.Listener {
+        override fun onCustomCommand(
+            controller: MediaController,
+            command: SessionCommand,
+            args: Bundle
+        ): ListenableFuture<SessionResult> {
+            when (command.customAction) {
+                MediaPlaybackService.ACTION_NEXT_CHANNEL -> {
+                    _events.tryEmit(Event.NextChannelRequested)
+                }
+                MediaPlaybackService.ACTION_PREVIOUS_CHANNEL -> {
+                    _events.tryEmit(Event.PreviousChannelRequested)
+                }
+            }
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+        }
+    }
+
+    private val playerListener = object : Player.Listener {
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            val mediaId = _player?.currentMediaItem?.mediaId
+            Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] onPlaybackStateChanged -> state=$playbackState, mediaId=$mediaId")
+            _events.tryEmit(Event.PlaybackStateChanged(playbackState))
+        }
+
+        override fun onTracksChanged(tracks: Tracks) {
+            val mediaId = _player?.currentMediaItem?.mediaId
+            Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] onTracksChanged -> mediaId=$mediaId")
+            _events.tryEmit(Event.TracksChanged(tracks))
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            val mediaId = _player?.currentMediaItem?.mediaId
+            Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] onIsPlayingChanged -> isPlaying=$isPlaying, mediaId=$mediaId")
+            _events.tryEmit(Event.IsPlayingChanged(isPlaying))
+        }
+
+        override fun onRenderedFirstFrame() {
+            val mediaId = _player?.currentMediaItem?.mediaId
+            Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] onRenderedFirstFrame -> mediaId=$mediaId")
+            _events.tryEmit(Event.RenderedFirstFrame)
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            val mediaId = _player?.currentMediaItem?.mediaId
+            Timber.e(error, "[PLAYBACK_MANAGER][instance=$instanceId] onPlayerError -> mediaId=$mediaId, errorCode=${error.errorCode}")
+            _events.tryEmit(Event.PlayerError(error))
+        }
+    }
+
+    /**
+     * Connects to the MediaPlaybackService and retrieves the MediaController.
+     * 
+     * @param onConnected Callback triggered when the controller is ready.
+     */
+    fun connect(onConnected: (Player) -> Unit) {
+        if (controllerFuture != null) return
+
+        val sessionToken = SessionToken(context, ComponentName(context, MediaPlaybackService::class.java))
+        controllerFuture = MediaController.Builder(context, sessionToken)
+            .setListener(controllerListener)
+            .buildAsync()
+        controllerFuture?.addListener({
+            try {
+                val controller = controllerFuture?.get() ?: return@addListener
+                _player = controller
+                _playerState.value = controller
+                controller.addListener(playerListener)
+                onConnected(controller)
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to connect to MediaSession")
+            }
+        }, ContextCompat.getMainExecutor(context))
+    }
+
+    /**
+     * Releases the MediaController connection.
+     */
+    fun release() {
+        _player?.removeListener(playerListener)
+        controllerFuture?.let {
+            MediaController.releaseFuture(it)
+        }
+        controllerFuture = null
+        _player = null
+        _playerState.value = null
+    }
+
+    /**
+     * Stops playback completely, clears items, releases controller and stops MediaPlaybackService.
+     */
+    fun stopAndDisconnect() {
+        try {
+            _player?.stop()
+            _player?.clearMediaItems()
+        } catch (e: Exception) {
+            Timber.e(e, "Error stopping player")
+        }
+        release()
+        try {
+            val intent = Intent(context, MediaPlaybackService::class.java)
+            context.stopService(intent)
+        } catch (e: Exception) {
+            Timber.e(e, "Error stopping MediaPlaybackService")
+        }
+    }
+
+    // --- Technical Transport Commands ---
+
+    fun play() {
+        Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] play -> mediaId=${_player?.currentMediaItem?.mediaId}")
+        _player?.play()
+    }
+
+    fun pause() {
+        Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] pause -> mediaId=${_player?.currentMediaItem?.mediaId}")
+        _player?.pause()
+    }
+
+    fun stop() {
+        Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] stop -> mediaId=${_player?.currentMediaItem?.mediaId}")
+        _player?.stop()
+    }
+
+    fun clearMediaItems() {
+        Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] clearMediaItems -> mediaId=${_player?.currentMediaItem?.mediaId}")
+        _player?.clearMediaItems()
+    }
+
+    fun setMediaItem(item: MediaItem) {
+        Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] setMediaItem -> mediaId=${item.mediaId}")
+        _player?.setMediaItem(item)
+    }
+
+    fun prepare() {
+        Timber.d("[PLAYBACK_MANAGER][instance=$instanceId] prepare -> mediaId=${_player?.currentMediaItem?.mediaId}")
+        _player?.prepare()
+    }
+
+    fun seekTo(positionMs: Long) {
+        _player?.seekTo(positionMs)
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        _player?.setPlaybackSpeed(speed)
+    }
+
+    fun setTrackSelectionParameters(parameters: TrackSelectionParameters) {
+        _player?.trackSelectionParameters = parameters
+    }
+
+    fun clearTrackOverrides() {
+        _player?.let { p ->
+            p.trackSelectionParameters = p.trackSelectionParameters
+                .buildUpon()
+                .clearOverrides()
+                .build()
+        }
+    }
+
+    fun requestNextChannel() {
+        _events.tryEmit(Event.NextChannelRequested)
+    }
+
+    fun requestPreviousChannel() {
+        _events.tryEmit(Event.PreviousChannelRequested)
+    }
+}

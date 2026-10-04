@@ -1,10 +1,10 @@
 <resources>
-    <string name="app_name">My Channels</string>
+    <string name="app_name">Squi TV</string>
     <string name="download_channel_name">Downloads</string>
     <string name="download_channel_description">Content download notifications</string>
 
     <!-- General -->
-    <string name="app_name_caps">MY CHANNELS</string>
+    <string name="app_name_caps">SQUI TV</string>
     <string name="home_label">Home</string>
     <string name="epg_label">TV Guide</string>
     <string name="back_content_desc">Back</string>
@@ -294,7 +294,7 @@
 
     <!-- Exit Confirmation -->
     <string name="exit_confirm_title">Exit Application</string>
-    <string name="exit_confirm_msg">Do you really want to close My Channels?</string>
+    <string name="exit_confirm_msg">Do you really want to close Squi TV?</string>
     <string name="exit_button">EXIT</string>
     <string name="stay_button">STAY</string>
     <string name="now_program_format">Now: %1$s - %2$s</string>
@@ -309,7 +309,7 @@
 
     <!-- Update Alert -->
     <string name="update_available_title">New Version Available</string>
-    <string name="update_available_msg">A new version of My Channels (v%s) is available. Do you want to download it now?</string>
+    <string name="update_available_msg">A new version of Squi TV (v%s) is available. Do you want to download it now?</string>
     <string name="download_now_button">DOWNLOAD NOW</string>
     <string name="later_button">LATER</string>
 
@@ -407,7 +407,7 @@
 
     <!-- App Updates -->
     <string name="app_updates_title">App Updates</string>
-    <string name="app_updates_subtitle">Keep your My Channels secure and up to date</string>
+    <string name="app_updates_subtitle">Keep your Squi TV secure and up to date</string>
     <string name="checking_updates">Checking for updates...</string>
     <string name="up_to_date_title">You are up to date</string>
     <string name="up_to_date_desc">Your installed version is the latest available.</string>
@@ -427,11 +427,11 @@
     <string name="integrity_failed_desc">The downloaded file failed the SHA-256 security test and was removed.</string>
     <string name="try_again_button">TRY AGAIN</string>
     <string name="permission_required_title">Permission required</string>
-    <string name="permission_required_desc">To install My Channels updates, allow this app to install unknown apps on your device.</string>
+    <string name="permission_required_desc">To install Squi TV updates, allow this app to install unknown apps on your device.</string>
     <string name="open_settings_button">OPEN SETTINGS</string>
     <string name="no_compatible_apk_title">This update does not have a compatible APK</string>
     <string name="update_error_title">Could not check for updates now</string>
     <string name="update_notification_title">New update available</string>
-    <string name="update_notification_msg">My Channels %s is available.</string>
+    <string name="update_notification_msg">Squi TV %s is available.</string>
     <string name="view_update_action">View update</string>
 </resources>

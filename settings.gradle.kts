@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Meus Canais"
+rootProject.name = "Squi TV"
 include(":app")

@@ -1,10 +1,10 @@
 <resources>
-    <string name="app_name">Mis Canales</string>
+    <string name="app_name">Squi TV</string>
     <string name="download_channel_name">Descargas</string>
     <string name="download_channel_description">Notificaciones de descarga de contenido</string>
 
     <!-- General -->
-    <string name="app_name_caps">MIS CANALES</string>
+    <string name="app_name_caps">SQUI TV</string>
     <string name="home_label">Inicio</string>
     <string name="epg_label">Guía TV</string>
     <string name="back_content_desc">Volver</string>
@@ -294,7 +294,7 @@
 
     <!-- Exit Confirmation -->
     <string name="exit_confirm_title">Salir de la Aplicación</string>
-    <string name="exit_confirm_msg">¿Realmente quieres cerrar Mis Canales?</string>
+    <string name="exit_confirm_msg">¿Realmente quieres cerrar Squi TV?</string>
     <string name="exit_button">SALIR</string>
     <string name="stay_button">QUEDARSE</string>
     <string name="now_program_format">Ahora: %1$s - %2$s</string>
@@ -305,11 +305,11 @@
     <string name="tv_shortcut_yellow">Ajustes</string>
     <string name="tv_shortcut_blue">Calidad</string>
     <string name="epg_grid_empty">No se encontró programación para esta hora.</string>
-    <string name="epg_syncing">Sincronizando Guía TV&#8230;</string>
+    <string name="epg_syncing">Sincronizando Guia TV&#8230;</string>
 
     <!-- Update Alert -->
     <string name="update_available_title">Nueva Versión Disponible</string>
-    <string name="update_available_msg">Una nova versión de Mis Canales (v%s) está disponible. ¿Desea descargarla ahora?</string>
+    <string name="update_available_msg">Una nova versión de Squi TV (v%s) está disponible. ¿Desea descargarla ahora?</string>
     <string name="download_now_button">DESCARGAR AHORA</string>
     <string name="later_button">DESPUÉS</string>
 
@@ -407,7 +407,7 @@
 
     <!-- App Updates -->
     <string name="app_updates_title">Actualizaciones de la App</string>
-    <string name="app_updates_subtitle">Mantenga su Mis Canales seguro y actualizado</string>
+    <string name="app_updates_subtitle">Mantenga su Squi TV seguro y actualizado</string>
     <string name="checking_updates">Buscando actualizaciones...</string>
     <string name="up_to_date_title">Estás actualizado</string>
     <string name="up_to_date_desc">Tu versión instalada es la más reciente disponible.</string>
@@ -427,11 +427,11 @@
     <string name="integrity_failed_desc">El archivo descargado no pasó la prueba de seguridad SHA-256 y fue eliminado.</string>
     <string name="try_again_button">INTENTAR DE NUEVO</string>
     <string name="permission_required_title">Permiso requerido</string>
-    <string name="permission_required_desc">Para instalar actualizaciones de Mis Canales, permita que esta aplicación instale aplicaciones desconocidas.</string>
+    <string name="permission_required_desc">Para instalar actualizaciones de Squi TV, permita que esta aplicación instale aplicaciones desconocidas.</string>
     <string name="open_settings_button">ABRIR CONFIGURACIÓN</string>
     <string name="no_compatible_apk_title">Esta actualización no tiene un APK compatible</string>
     <string name="update_error_title">No se pudo buscar actualizaciones ahora</string>
     <string name="update_notification_title">Nueva actualización disponible</string>
-    <string name="update_notification_msg">Mis Canales %s está disponible.</string>
+    <string name="update_notification_msg">Squi TV %s está disponible.</string>
     <string name="view_update_action">Ver actualización</string>
 </resources>
